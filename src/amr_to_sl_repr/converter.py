@@ -77,3 +77,15 @@ class Converter:
 
                     new_triples.append((source, role, target))
                 self.split_graphs.append(penman.Graph(new_triples))
+
+
+if __name__ == "__main__":
+    with open(r"F:\python\amr-to-sl-repr\data\vgt-amr-sentences.txt", encoding="utf-8") as fhin:
+        for tree in penman.iterparse(fhin):
+            meta = Converter(tree=tree)
+            print(f"MAIN GRAPH\n==========")
+            print(penman.encode(meta.graph))
+            for graph_idx, subgraph in enumerate(meta.split_graphs, 1):
+                print(f"SUB GRAPH #{graph_idx} \n==========")
+                print(penman.encode(subgraph))
+                print()
