@@ -4,8 +4,9 @@ from setuptools import find_packages, setup
 from src.amr_to_sl_repr import __version__
 
 
-extras = {"style": ["flake8", "isort", "black"]}
-extras["dev"] = extras["style"] + ["pytest"]
+extras = {"style": ["flake8", "isort", "black"],
+          "training": ["datasets", "evaluate", "protobuf", "sacrebleu", "sentencepiece", "torch", "transformers"]}
+extras["dev"] = extras["style"] + extras["training"] + ["pytest"]
 
 setup(
     name="amr_to_sl_repr",
