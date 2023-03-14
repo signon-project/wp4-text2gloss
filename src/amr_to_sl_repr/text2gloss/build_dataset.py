@@ -1,18 +1,17 @@
-# Idea
 import json
 import re
 from operator import itemgetter
 from os import PathLike
 from pathlib import Path
 from random import shuffle
-from typing import Union, List, Literal, Optional, Dict
+import random
+from string import punctuation
+from typing import Union, List, Optional, Dict
 
 from ftfy import fix_text
+import spacy
 
 
-# TODO:
-#
-# using: https://huggingface.co/yhavinga/ul2-large-dutch or https://huggingface.co/yhavinga/ul2-base-dutch
 def filter_glosses(glosses: List[str], translation: str, remove_gestures: bool = False, remove_prefixes: bool = False,
                    remove_parentheses: bool = False,
                    simplify_wg: bool = False, simplify_c: bool = False, remove_specifiers: bool = False,
@@ -194,8 +193,13 @@ def filter_subsequent_duplicates(glosses: List[str]):
 
 
 def build_dataset(data: List[dict],
+                  lemmatize_src: bool = False,
+                  lowercase: bool = False,
+                  remove_punct_src: bool = False,
                   min_length: int = 3,
                   **kwargs):
+
+    nlp = spacy.load("nl_core_news_lg", exclude=["parser", "ner", "textcat"]) if lemmatize_src else None
     ds = []
     for item in data:
         translation = item["translation"].strip()
@@ -213,11 +217,23 @@ def build_dataset(data: List[dict],
             continue
         glosses_str = " ".join(glosses)
 
+        if nlp:
+            translation = " ".join([t.lemma_.upper() for t in nlp(translation)])
+
+        if lowercase:
+            translation = translation.lower()
+            glosses_str = glosses_str.lower()
+
+        if remove_punct_src:
+            translation = translation.translate(str.maketrans("", "", punctuation)).strip()
+            translation = re.sub(r"\s{2,}", " ", translation)  # remove duplicate whitespace after removing punct
+
         ds.append({"translation": translation, "glosses": glosses_str})
     return ds
 
 
 def main(annotions_f: Union[str, PathLike], out_d: Union[str, PathLike],
+         lemmatize_src: bool = False, lowercase: bool = False, remove_punct_src: bool = False,
          splits: Dict[str, float] = None, shuffle_before_split: bool = True):
     all_annotations = json.loads(Path(annotions_f).read_text(encoding="utf-8"))
 
@@ -235,7 +251,8 @@ def main(annotions_f: Union[str, PathLike], out_d: Union[str, PathLike],
         "remove_buoy": True,
         "selective_removal_ng": True
     }
-    processed = build_dataset(all_annotations, **kwargs)
+    processed = build_dataset(all_annotations, lemmatize_src=lemmatize_src,
+                              lowercase=lowercase, remove_punct_src=remove_punct_src, **kwargs)
     jsonified = [json.dumps(sample) for sample in processed]
     num_items = len(jsonified)
 
@@ -251,6 +268,7 @@ def main(annotions_f: Union[str, PathLike], out_d: Union[str, PathLike],
         raise ValueError("'splits' values should sum to 1")
 
     if shuffle_before_split:
+        random.seed(42)
         shuffle(jsonified)
 
     cut_offs = {split_name: int(split_size * num_items) for split_name, split_size in splits.items()}
@@ -267,6 +285,7 @@ def main(annotions_f: Union[str, PathLike], out_d: Union[str, PathLike],
 
 if __name__ == '__main__':
     main(r"D:\corpora\sl\Corpus VGT\annotations.json",
-         r"F:\python\amr-to-sl-repr\data\corpus-vgt",
+         r"F:\python\amr-to-sl-repr\data\corpus-vgt\lemma",
+         lemmatize_src=True, lowercase=False, remove_punct_src=False,
          splits={"train": 0.8, "dev": 0.1, "test": 0.1},
          shuffle_before_split=True)
