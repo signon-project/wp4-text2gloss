@@ -39,8 +39,10 @@ setup(
     python_requires=">=3.8",
     install_requires=[
         "networkx",
+        "pandas",
         "penman>=1.2.2",
         "tqdm",
+        "wn",
     ],
     extras_require=extras
 )
