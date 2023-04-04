@@ -4,9 +4,8 @@ from setuptools import find_packages, setup
 from src.amr_to_sl_repr import __version__
 
 
-extras = {"style": ["flake8", "isort", "black"],
-          "training": ["datasets", "evaluate", "protobuf", "sacrebleu", "sentencepiece", "torch", "transformers"]}
-extras["dev"] = extras["style"] + extras["training"] + ["pytest"]
+extras = {"style": ["flake8", "isort", "black"]}
+extras["dev"] = extras["style"] + ["pytest"]
 
 setup(
     name="amr_to_sl_repr",
@@ -38,6 +37,9 @@ setup(
     },
     python_requires=">=3.8",
     install_requires=[
+        "fasttext",
+        "gensim",
+        "mbart_amr @ git+https://github.com/BramVanroy/multilingual-text-to-amr.git",
         "networkx",
         "pandas",
         "penman>=1.2.2",

@@ -1,15 +1,11 @@
-import json
 import logging
 from functools import lru_cache
-from pathlib import Path
 from typing import Optional, List, Union
-from collections import Counter
 
 import requests
 import wn
 from Levenshtein import distance
 
-from muss.simplify import simplify_sentences
 
 
 def offset2omw_synset(wnet: wn.Wordnet, offset: str) -> Optional[wn.Synset]:
@@ -39,7 +35,7 @@ def get_amuse_wsd(texts: List[str], lang: str):
                              headers={"accept": "application/json", "Content-Type": "application/json"})
     return response.json()
 
-def main(texts: Union[str, List[str]], src_lang: str = "en", tgt_lang: str = "nl"):
+def main(texts: Union[str, List[str]], src_lang: str = "en"):
     """
     text (any language) -> translate src_lang to en -> simplify -> wsd -> translate en synset to tgt_lang
     :param texts:
@@ -54,10 +50,6 @@ def main(texts: Union[str, List[str]], src_lang: str = "en", tgt_lang: str = "nl
         # TODO: Do translation
         texts = texts
 
-    # TODO: this does not perform well
-    pred_sentences = simplify_sentences(texts, model_name="muss_en_wikilarge_mined")
-    print(pred_sentences)
-    exit()
     sents = get_amuse_wsd(texts, "en")
     # Amuse returns English synsets, even if the input language is something else like Dutch
     ewn = wn.Wordnet(f"omw-en:1.4")
@@ -79,7 +71,7 @@ def main(texts: Union[str, List[str]], src_lang: str = "en", tgt_lang: str = "nl
                 except KeyError:
                     continue
 
-                en_syn = offset2omw_synset(ewn, ofs, lang=src_lang)
+                en_syn = offset2omw_synset(ewn, ofs)
 
                 # No synset found
                 if en_syn is None:
