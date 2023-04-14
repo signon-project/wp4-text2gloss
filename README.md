@@ -1,10 +1,10 @@
 # Text-to-gloss for VGT
  
-# FastText models
+## FastText models
 
 We use fastText aligned models for disambiguation purposes. The models will be downloaded automatically to `models/fasttext`.
 
-# FastAPI inference server
+## FastAPI inference server
 
 Because loading the fastText vectors takes a LONG time, I included an `inference_server.py` that can run in the background.
 It runs a FastAPI endpoint that can be queried for fastText vectors but also for text-to-AMR.
@@ -17,6 +17,10 @@ uvicorn inference_server:app --port 5000
 
 This server needs to be started before running the `pipeline.py` script.
 
+## Data
+
+I recommend to keep a directory `data` in the highest position (next to `src` and `models`). I recommend to keep the
+VGT dictionary (as TSV/JSON) in here for easy access.
 
 ## LICENSE
 
