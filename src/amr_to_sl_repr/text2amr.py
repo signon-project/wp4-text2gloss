@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Tuple, Literal, List
+from typing import List, Literal, Tuple
 
 import torch
 from mbart_amr.constraints.constraints import AMRLogitsProcessor
@@ -8,7 +8,7 @@ from mbart_amr.data.tokenization import AMRMBartTokenizer
 from optimum.bettertransformer import BetterTransformer
 from torch import nn, qint8
 from torch.ao.quantization import quantize_dynamic
-from transformers import MBartForConditionalGeneration, LogitsProcessorList
+from transformers import LogitsProcessorList, MBartForConditionalGeneration
 
 
 LANGUAGES = {
@@ -19,9 +19,9 @@ LANGUAGES = {
 
 
 @lru_cache
-def get_resources(multilingual: bool,
-                  quantize: bool = True,
-                  no_cuda: bool = False) -> Tuple[MBartForConditionalGeneration, AMRMBartTokenizer, AMRLogitsProcessor]:
+def get_resources(
+    multilingual: bool, quantize: bool = True, no_cuda: bool = False
+) -> Tuple[MBartForConditionalGeneration, AMRMBartTokenizer, AMRLogitsProcessor]:
     """Get the relevant model, tokenizer and logits_processor. The loaded model depends on whether the multilingual
     model is requested, or not. If not, an English-only model is loaded. The model can be optionally quantized
     for better performance.
@@ -51,10 +51,13 @@ def get_resources(multilingual: bool,
     return model, tokenizer, logits_processor
 
 
-def translate(text: List[str],
-              src_lang: Literal["English", "Dutch", "Spanish"],
-              model: MBartForConditionalGeneration,
-              tokenizer: AMRMBartTokenizer, **gen_kwargs) -> List[str]:
+def translate(
+    text: List[str],
+    src_lang: Literal["English", "Dutch", "Spanish"],
+    model: MBartForConditionalGeneration,
+    tokenizer: AMRMBartTokenizer,
+    **gen_kwargs
+) -> List[str]:
     """Translates a given text of a given source language with a given model and tokenizer. The generation is guided by
     potential keyword-arguments, which can include arguments such as max length, logits processors, etc.
     :param text: source text to translate
@@ -71,19 +74,18 @@ def translate(text: List[str],
     return tokenizer.decode_and_fix(generated)
 
 
-def text2penman(text: List[str],
-                src_lang: Literal["English", "Dutch", "Spanish"],
-                quantize: bool = True,
-                no_cuda: bool = False) -> List[str]:
+def text2penman(
+    text: List[str], src_lang: Literal["English", "Dutch", "Spanish"], quantize: bool = True, no_cuda: bool = False
+) -> List[str]:
     """Converts a given list of sentences into a list of penman representations. Note that these are not
     validated so it is possible that the returned penman strings are not valid!
     """
     multilingual = src_lang != "English"
-    model, tokenizer, logitsprocessor = get_resources(multilingual, quantize=quantize, no_cuda=no_cuda)
+    model, tokenizer, logitsprocessor = get_resources(multilingual, quantize=True, no_cuda=False)
     gen_kwargs = {
         "max_length": model.config.max_length,
         "num_beams": model.config.num_beams,
-        "logits_processor": LogitsProcessorList([logitsprocessor])
+        "logits_processor": LogitsProcessorList([logitsprocessor]),
     }
 
     linearizeds = translate(text, src_lang, model, tokenizer, **gen_kwargs)

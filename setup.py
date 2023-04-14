@@ -37,10 +37,12 @@ setup(
     },
     python_requires=">=3.8",
     install_requires=[
+        "accelerate",
         "fasttext",
         "gensim",
         "mbart_amr @ git+https://github.com/BramVanroy/multilingual-text-to-amr.git",
         "networkx",
+        "optimum",
         "pandas",
         "penman>=1.2.2",
         "tqdm",
