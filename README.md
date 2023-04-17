@@ -7,8 +7,11 @@
 Download the corresponding videos from the URLs in the VGT dictionary.
 
 ```shell
-python src/amr_to_sl_repr/download_vgt_videos.py data/vgt-woordenboek-27_03_2023.tsv data/videos error.log
+python src/amr_to_sl_repr/process_dictionary/download_vgt_videos.py data/vgt-woordenboek-27_03_2023.tsv data/videos error.log
 ```
+
+### 1. Pre-process the VGT dictionary
+
 
  
 ## FastText models

@@ -30,11 +30,11 @@ def maybe_download_ft_vectors(download_nl: bool = True, download_en: bool = True
 
         with pfout.open("wb") as fhout:
             with tqdm(
-                    total=total_size / (32 * 1024.0),
-                    unit="B",
-                    unit_scale=True,
-                    unit_divisor=1024,
-                    desc=f"Downloading {pfout.name}",
+                total=total_size / (32 * 1024.0),
+                unit="B",
+                unit_scale=True,
+                unit_divisor=1024,
+                desc=f"Downloading {pfout.name}",
             ) as pbar:
                 for data in response.iter_content(32 * 1024):
                     fhout.write(data)
