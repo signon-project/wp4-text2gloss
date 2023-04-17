@@ -1,4 +1,15 @@
 # Text-to-gloss for VGT
+
+## How to use
+
+### 0. Download VGT videos
+
+Download the corresponding videos from the URLs in the VGT dictionary.
+
+```shell
+python src/amr_to_sl_repr/download_vgt_videos.py data/vgt-woordenboek-27_03_2023.tsv data/videos error.log
+```
+
  
 ## FastText models
 
