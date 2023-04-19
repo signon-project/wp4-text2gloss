@@ -25,7 +25,7 @@ class FastTextItem(BaseModel):
 
 
 @app.post("/token_exists_in_ft/")
-async def get_token_exists_in_ft(item: FastTextItem) -> bool:
+def get_token_exists_in_ft(item: FastTextItem) -> bool:
     if item.lang == "English":
         return item.token in ft_en
     elif item.lang == "Dutch":
@@ -33,7 +33,7 @@ async def get_token_exists_in_ft(item: FastTextItem) -> bool:
 
 
 @app.post("/token_vector/")
-async def get_token_vector(item: FastTextItem):
+def get_token_vector(item: FastTextItem):
     if item.lang == "English":
         return ft_en[item.token].tolist() if item.token in ft_en else None
     elif item.lang == "Dutch":
@@ -48,5 +48,5 @@ class PenmanItem(BaseModel):
 
 
 @app.post("/penman/")
-async def get_penman(item: PenmanItem) -> List[str]:
+def get_penman(item: PenmanItem) -> List[str]:
     return text2penman([item.text], src_lang=item.src_lang, quantize=item.quantize, no_cuda=item.no_cuda)
