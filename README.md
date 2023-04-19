@@ -26,7 +26,6 @@ download-vgt-videos data/vgt-woordenboek-27_03_2023.tsv data/videos error.log -j
 ```
 
 
-
 ### 1. Pre-process the VGT dictionary
 
 The VGT dictionary contains glosses with a lot of information per gloss. For this repository especially the possible
@@ -50,21 +49,39 @@ translate-openai data/vgt-woordenboek-27_03_2023.tsv data/vgt-woordenboek-27_03_
 
 #### 1. Add multilingual WordNet synset "translations" and disambiguate
 
-This script will disambiguate all the translation candidates in the "en" column, too. That includes the OpenAI 
-translations as well as the WordNet translations. This is done by means of vector similarities through fastText.
-The fastText models will be downloaded automatically to `models/fasttext`.
-
 **Before running this script** make sure that the inference server is running (see 
 [FastAPI inference server](#fastapi-inference-server))
 
-TODO
+In addition to the optional previous step, we can also find broad translations through open multilingual WordNet. By
+looking up a Dutch word's synset, we can find the English words that correspond with the English synset that is aligned
+with the Dutch one. This gives us a set of potential, very broad, translations.
+
+Therefore, we use disambiguation to filter out English translations that are too "far" from the Dutch translations in
+terms of semantics. This script will disambiguate all the translation candidates in the "en" column. That includes the
+potential OpenAI translations as well as the WordNet translations. This is done by means of vector similarities through
+fastText. The fastText models will be downloaded automatically to `models/fasttext`.
+
+```shell
+translate-wn data/vgt-woordenboek-27_03_2023+openai.tsv
+```
+
+The output of this is step is an updated TSV file (same directory as input), as well as a JSON file that contains the 
+following keys:
+
+- `gloss2en`: a dictionary (str->list) of gloss to potential English translations
+- `gloss2nl`: a dictionary (str->list) of gloss to potential Dutch translations
+- `en2gloss`: a dictionary (str->list) of English translation to glosses
+- `nl2gloss`: a dictionary (str->list) of Dutch translation to glosses
+
+TODO: ensure that a given translation is only given for one gloss. In other words, a translation cannot be used for different glosses - it must be uniquely used.
+
 
 ## FastAPI inference server
 
 Because loading the fastText vectors takes a LONG time, I included an `inference_server.py` that can run in the background.
 It runs a FastAPI endpoint that can be queried for fastText vectors but also for text-to-AMR.
 
-Start the server by doing into the deepest directory in `src/text2gloss/api` and running:
+Start the server by going into `src/text2gloss/api` and running:
 
 ```shell
 uvicorn inference_server:app --port 5000
