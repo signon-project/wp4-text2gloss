@@ -15,8 +15,10 @@ python -m pip install .
 Download the corresponding videos from the URLs in the VGT dictionary.
 
 ```shell
-python src/text2gloss/process_dictionary/download_vgt_videos.py data/vgt-woordenboek-27_03_2023.tsv data/videos error.log
+download-vgt-videos data/vgt-woordenboek-27_03_2023.tsv data/videos error.log -j 8
 ```
+
+
 
 ### 1. Pre-process the VGT dictionary
 

@@ -75,3 +75,4 @@ lines_after_imports = 2
 
 [project.scripts]
 translate-openai = "text2gloss.process_dictionary.vgt_openai_translations:main"
+download-vgt-videos = "text2gloss.process_dictionary.download_vgt_videos:main"
