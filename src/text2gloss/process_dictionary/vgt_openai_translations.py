@@ -146,7 +146,7 @@ def get_translated_idxs(df: DataFrame) -> List[int]:
     return has_translations["ID"].tolist()
 
 
-def main(
+def translate_vgt_with_openai(
     fin: str, fout: str, model: str = "gpt-3.5-turbo", max_parallel_requests: int = 16, first_n: Optional[int] = None
 ):
     skip_idxs = []
@@ -211,7 +211,7 @@ def main(
     df.to_csv(fout, sep="\t", index=False, encoding="utf-8")
 
 
-if __name__ == "__main__":
+def main():
     import argparse
 
     cparser = argparse.ArgumentParser(
@@ -226,4 +226,8 @@ if __name__ == "__main__":
     cparser.add_argument("-m", "--model", default="gpt-3.5-turbo", help="Chat model to use")
     cparser.add_argument("-j", "--max_parallel_requests", default=16, type=int, help="Max. parallel requests to query")
     cparser.add_argument("-i", "--first_n", default=None, type=int, help="For debugging: only translate first n items")
-    main(**vars(cparser.parse_args()))
+    translate_vgt_with_openai(**vars(cparser.parse_args()))
+
+
+if __name__ == "__main__":
+    main()

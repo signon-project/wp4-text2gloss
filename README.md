@@ -1,5 +1,13 @@
 # Text-to-gloss for VGT
 
+## Installation
+
+Simply pip install this repository. This will automatically download dependencies and also register shortcut commands.
+
+```shell
+python -m pip install .
+```
+
 ## How to use
 
 ### 0. Download VGT videos
@@ -28,7 +36,7 @@ Note that to use this script, you need to have your [OpenAI API key](https://pla
 an enviroment variable `OPENAI_API_KEY`. Also note that using the OpenAI API is not free!
 
 ```shell
- python src/text2gloss/process_dictionary/vgt_openai_translations.py data/vgt-woordenboek-27_03_2023.tsv data/vgt-woordenboek-27_03_2023+openai.tsv
+translate-openai data/vgt-woordenboek-27_03_2023.tsv data/vgt-woordenboek-27_03_2023+openai.tsv
 ```
 
 #### 1. Add multilingual WordNet synset "translations" and disambiguate
@@ -47,7 +55,7 @@ TODO
 Because loading the fastText vectors takes a LONG time, I included an `inference_server.py` that can run in the background.
 It runs a FastAPI endpoint that can be queried for fastText vectors but also for text-to-AMR.
 
-Start the server by doing into the deepest directory in `src/text2gloss` and running:
+Start the server by doing into the deepest directory in `src/text2gloss/api` and running:
 
 ```shell
 uvicorn inference_server:app --port 5000
