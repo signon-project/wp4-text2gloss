@@ -81,7 +81,7 @@ def text2penman(
     validated so it is possible that the returned penman strings are not valid!
     """
     multilingual = src_lang != "English"
-    model, tokenizer, logitsprocessor = get_resources(multilingual, quantize=True, no_cuda=False)
+    model, tokenizer, logitsprocessor = get_resources(multilingual, quantize=quantize, no_cuda=no_cuda)
     gen_kwargs = {
         "max_length": model.config.max_length,
         "num_beams": model.config.num_beams,
