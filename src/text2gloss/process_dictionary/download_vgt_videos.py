@@ -60,15 +60,18 @@ def download_vgt_videos(fin: str, dout: str, ferror: str, force_overwrite: bool 
 def main():
     import argparse
 
-    cparser = argparse.ArgumentParser(description="Download all the videos from the URLs in the VGT dictionary",
-                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    cparser = argparse.ArgumentParser(
+        description="Download all the videos from the URLs in the VGT dictionary",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     cparser.add_argument("fin", help="VGT dictionary in TSV format. Must have a column called 'Video'")
     cparser.add_argument("dout", help="Output directory to write the videos to")
     cparser.add_argument("ferror", help="Output file to log errors to")
     cparser.add_argument("-f", "--force_overwrite", action="store_true", help="Whether to overwrite files")
-    cparser.add_argument("-j", "--num_workers", type=int, default=4,
-                         help="How many workers to use to download in parallel")
+    cparser.add_argument(
+        "-j", "--num_workers", type=int, default=4, help="How many workers to use to download in parallel"
+    )
 
     download_vgt_videos(**vars(cparser.parse_args()))
 

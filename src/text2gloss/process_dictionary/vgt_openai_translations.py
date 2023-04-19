@@ -214,7 +214,8 @@ def main():
         "Translate the 'possible translations' (Dutch) in the VGT dictionary to English"
         " with a GPT model. This is useful because we can give it a cluster of words"
         " and ask for similar English words. As such, it is 'context-sensitive'; taking"
-        " into account the whole cluster of words."
+        " into account the whole cluster of words.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     cparser.add_argument("fin", help="VGT dictionary in TSV format")
