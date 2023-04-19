@@ -8,9 +8,9 @@ from pathlib import Path
 import pandas as pd
 import requests
 import wn
-from text2gloss.utils import standardize_gloss
-from text2gloss.vec_similarity import cos_sim, get_vec_from_api, get_token_exists_in_ft, get_centroid
 from pandas import DataFrame, Series
+from text2gloss.utils import standardize_gloss
+from text2gloss.vec_similarity import cos_sim, get_centroid, get_token_exists_in_ft, get_vec_from_api
 from tqdm import tqdm
 
 
@@ -205,6 +205,7 @@ def main(fin: str, threshold: float = 0.1, no_fasttext: bool = False) -> Path:
 
 if __name__ == "__main__":
     import argparse
+
     # TODO: update documentation
     cparser = argparse.ArgumentParser(description="")
 

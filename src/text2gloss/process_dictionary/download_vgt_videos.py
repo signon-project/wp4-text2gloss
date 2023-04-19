@@ -52,8 +52,7 @@ def main(fin: str, dout: str, ferror: str, force_overwrite: bool = False):
             }
 
             for future in tqdm(as_completed(future_to_url), total=len(df.index)):
-                url = future_to_url[future]
-                data = future.result()
+                _ = future.result()
                 # If we still want to do anything with the return value (local path to video)
 
 

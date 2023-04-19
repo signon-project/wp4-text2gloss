@@ -56,7 +56,7 @@ def translate(
     src_lang: Literal["English", "Dutch", "Spanish"],
     model: MBartForConditionalGeneration,
     tokenizer: AMRMBartTokenizer,
-    **gen_kwargs
+    **gen_kwargs,
 ) -> List[str]:
     """Translates a given text of a given source language with a given model and tokenizer. The generation is guided by
     potential keyword-arguments, which can include arguments such as max length, logits processors, etc.

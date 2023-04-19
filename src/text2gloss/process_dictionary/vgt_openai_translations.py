@@ -82,11 +82,7 @@ def openai_translate(item_idx: int, nl_words: str, mgr_flags: DictProxy, model: 
     :param model: the OpenAI model to use for translation
     :return: a (possible empty) list of English translations, or None in case of error
     """
-    response = {
-        "ID": item_idx,
-        "nl_words": nl_words,
-        "translations": None
-    }
+    response = {"ID": item_idx, "nl_words": nl_words, "translations": None}
 
     if mgr_flags["rate_limit_reached"] or mgr_flags["total_failures"] >= 3:
         return response
@@ -103,10 +99,10 @@ def openai_translate(item_idx: int, nl_words: str, mgr_flags: DictProxy, model: 
     user_prompt = {
         "role": "user",
         "content": f"Consider the following list of one or more Dutch words. They are synonyms. Provide one or more"
-                   f" translations of this Dutch 'synset' of concepts in English. Format the resulting list of possible"
-                   f" translations as a JSON list (without markdown ```json``` marker) and do not add an explanation or"
-                   f" extra information. If you cannot translate a word (such as a city or a name), simply copy the"
-                   f" input word.\n\n{nl_words}",
+        f" translations of this Dutch 'synset' of concepts in English. Format the resulting list of possible"
+        f" translations as a JSON list (without markdown ```json``` marker) and do not add an explanation or"
+        f" extra information. If you cannot translate a word (such as a city or a name), simply copy the"
+        f" input word.\n\n{nl_words}",
     }
 
     translation = get_response([system_prompt, user_prompt], mgr_flags, model).strip()
@@ -121,7 +117,7 @@ def openai_translate(item_idx: int, nl_words: str, mgr_flags: DictProxy, model: 
         return response
     except Exception:
         try:
-            splut = re.split(r'\",\s*\"', translation)
+            splut = re.split(r"\",\s*\"", translation)
             splut = [re.sub(r"\[?\"?", "", t) for t in splut]
             splut = [re.sub(r"\"?\]?", "", t) for t in splut]
             splut = [re.sub(r"(.*)\n.*", "\\1", t) for t in splut]

@@ -1,10 +1,10 @@
 from typing import List, Literal
 
-from text2gloss.text2amr import text2penman
-from text2gloss.vec_similarity import load_fasttext_models
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from text2gloss.text2amr import text2penman
+from text2gloss.vec_similarity import load_fasttext_models
 
 
 app = FastAPI()
