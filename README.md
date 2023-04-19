@@ -8,6 +8,13 @@ Simply pip install this repository. This will automatically download dependencie
 python -m pip install .
 ```
 
+For developers: you can automatically install some goodies like black, isort, mypy with the `dev` extra.
+
+```shell
+python -m pip install .[dev]
+```
+
+
 ## How to use
 
 ### 0. Download VGT videos
