@@ -16,7 +16,7 @@ setup(
     keywords="nlp amr parsing semantic-parsing sign language",
     package_dir={"": "src"},
     packages=find_packages("src"),
-    url="https://github.com/BramVanroy/multilingual-text-to-amr",
+    url="https://github.com/BramVanroy/amr-to-sl-repr",
     author="Bram Vanroy",
     author_email="bramvanroy@hotmail.com",
     license="GPLv3",
@@ -26,6 +26,7 @@ setup(
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering",
         "Topic :: Text Processing",
+        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
@@ -38,6 +39,7 @@ setup(
     python_requires=">=3.8",
     install_requires=[
         "accelerate",
+        "fastapi",
         "fasttext",
         "gensim",
         "mbart_amr @ git+https://github.com/BramVanroy/multilingual-text-to-amr.git",
@@ -46,6 +48,7 @@ setup(
         "pandas",
         "penman>=1.2.2",
         "tqdm",
+        "uvicorn",
         "wn",
     ],
     extras_require=extras
