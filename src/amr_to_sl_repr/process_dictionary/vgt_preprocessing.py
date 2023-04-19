@@ -5,11 +5,11 @@ from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
+import requests
 import wn
 from amr_to_sl_repr.utils import standardize_gloss
-from amr_to_sl_repr.vec_similarity import cos_sim, load_fasttext_models
+from amr_to_sl_repr.vec_similarity import cos_sim, get_vec_from_api, get_token_exists_in_ft, get_centroid
 from pandas import DataFrame, Series
 from tqdm import tqdm
 
@@ -24,7 +24,24 @@ def add_en_translations(df: DataFrame):
     """
     nwn = wn.Wordnet("omw-nl:1.4")
 
-    @lru_cache
+    @lru_cache(maxsize=256)
+    def translate_word(nl_word: str):
+        en_translations = set()
+
+        if nl_word[0].isupper():
+            # Probably a city, country or name
+            en_translations.add(nl_word)
+        else:
+            nl_word = nl_word.strip()
+            nl_wn_words = nwn.words(nl_word)
+
+            if nl_wn_words:
+                for nl_wn_word in nl_wn_words:
+                    for _, en_wn_words in nl_wn_word.translate("omw-en:1.4").items():
+                        en_translations.update([en_w.lemma() for en_w in en_wn_words])
+
+        return en_translations
+
     def translate(row: Series):
         nl = row["nl"]
         # One gloss has multiple Dutch "translations"
@@ -41,22 +58,11 @@ def add_en_translations(df: DataFrame):
             en_translations = set()
 
         for nl_word in nl_words:
-            if nl_word[0].isupper():
-                # Probably a city, country or name
-                en_translations.add(nl_word)
-                continue
-
-            nl_word = nl_word.strip()
-            nl_wn_words = nwn.words(nl_word)
-
-            if nl_wn_words:
-                for nl_wn_word in nl_wn_words:
-                    for _, en_wn_words in nl_wn_word.translate("omw-en:1.4").items():
-                        en_translations.update([en_w.lemma() for en_w in en_wn_words])
+            en_translations.update(translate_word(nl_word))
 
         return ", ".join(sorted(en_translations))
 
-    tqdm.pandas(desc="Translating NL 'translations' to EN with WordNet and OpenAI")
+    tqdm.pandas(desc="Translating NL 'translations' to EN with WordNet")
     df["en"] = df.progress_apply(translate, axis=1)
 
     return df
@@ -83,30 +89,30 @@ def filter_en_translations(df: DataFrame, threshold: float = 0.1):
     :param threshold: minimal value. If cosine similarity is below this, the word will not be included
     :return: the updated DataFrame where potentially items have been removed from the "en" column
     """
-    ft_nl, ft_en = load_fasttext_models()
+    session = requests.Session()
+    session.headers.update({"Content-Type": "application/json"})
 
     def filter_translations(row):
         if not row["nl"] or not row["en"]:
             return row["en"]
         # Do this for the list, of, words because sometimes
         # there is a comma in the parentheses, which leads to unexpected results such as
-        # bewerkingsteken (+, -...) -> -...)
+        # `bewerkingsteken (+, -...)` -> -...)
         nl_words = remove_brackets(row["nl"])
-        nl_words = [w.strip() for w in nl_words.split(", ")]
-        nl_vecs = [ft_nl[w] for w in nl_words if w in ft_nl]
+        nl_words = tuple([w.strip() for w in nl_words.split(", ")])
+        nl_centroid = get_centroid(nl_words, lang="Dutch", session=session)
 
-        if not nl_vecs:
+        if nl_centroid is None:
             return row["en"]
-
-        nl_centroid = np.mean(nl_vecs, axis=0)
 
         en_words = [w.strip() for w in row["en"].split(", ")]
         filtered_en = []
         for en in en_words:
-            if en not in ft_en:
+            if not get_token_exists_in_ft(en, lang="English", session=session):
                 # Do not include it if it is not found in the ft vectors!
                 continue
-            en_vec = ft_en[en]
+            en_vec = get_vec_from_api(en, lang="English", session=session)
+
             sim = cos_sim(en_vec, nl_centroid)
 
             if sim >= threshold:
@@ -118,10 +124,11 @@ def filter_en_translations(df: DataFrame, threshold: float = 0.1):
 
     tqdm.pandas(desc="Filtering EN translations by semantic comparison")
     df["en"] = df.progress_apply(filter_translations, axis=1)
+    session.close()
     return df
 
 
-def main(fin: str, threshold: float = 0.1, no_openai: bool = False, no_fasttext: bool = False) -> Path:
+def main(fin: str, threshold: float = 0.1, no_fasttext: bool = False) -> Path:
     """Generate WordNet translations for the words in the "possible translation" column in the VGT dictionary.
     Then, filter those possible translations by comparing them with the centroid fastText vector. English translations
     that have a cosine similarity (between -1 and +1) of less than the threshold will not be included in the final
@@ -140,19 +147,23 @@ def main(fin: str, threshold: float = 0.1, no_openai: bool = False, no_fasttext:
     pfin = Path(fin).resolve()
 
     df = pd.read_csv(fin, sep="\t")
+    had_en_column = "en" in df.columns
     df = df.rename(columns={df.columns[1]: "gloss", df.columns[2]: "nl"})
     df["nl"] = df["nl"].apply(
-        lambda nl: ", ".join(map(str.strip, nl.split(", ")))
+        lambda nl: ", ".join(map(str.strip, re.split(r"\s*,\s*", nl)))
     )  # clean possible white-space issues
     df = add_en_translations(df)
+
+    # Filter/disambiguate translations
     if not no_fasttext:
         df = filter_en_translations(df, threshold=threshold)
 
-    cols = list(df.columns)
-    reordered_cols = cols[:3] + [cols[-1]] + cols[3:-1]
-    df = df[reordered_cols]
+    if not had_en_column:
+        cols = list(df.columns)
+        reordered_cols = cols[:3] + [cols[-1]] + cols[3:-1]
+        df = df[reordered_cols]
 
-    pfout_tsv = pfin.with_name(f"{pfin.stem}+en_transls{pfin.suffix}")
+    pfout_tsv = pfin.with_name(f"{pfin.stem}+wn_transls{pfin.suffix}")
     df.to_csv(pfout_tsv, index=False, sep="\t")
     logging.info(f"Saved updated TSV in {pfout_tsv.resolve()}")
 
@@ -183,7 +194,7 @@ def main(fin: str, threshold: float = 0.1, no_openai: bool = False, no_fasttext:
         "nl2gloss": {k: sorted(nl2gloss[k]) for k in sorted(nl2gloss)},
     }
 
-    pfout = pfin.with_name(f"{pfin.stem}+en_transls.json")
+    pfout = pfin.with_name(f"{pfin.stem}+wn_transls.json")
 
     with pfout.open("w", encoding="utf-8") as fhout:
         json.dump(all_dicts, fhout, indent=4)
@@ -194,21 +205,8 @@ def main(fin: str, threshold: float = 0.1, no_openai: bool = False, no_fasttext:
 
 if __name__ == "__main__":
     import argparse
-
-    cparser = argparse.ArgumentParser(
-        description="Generate WordNet translations for the words in the 'possible"
-        " translation' column in the VGT dictionary. (To use the OpenAI "
-        " translation, your key must be set as an environment variable in "
-        " 'OPENAI_API_KEY'. If you not have an OpenAI account, you can disable"
-        " this option with the '--no_openai' flag) Then, filter those possible"
-        " translations by comparing them with the centroid fastText"
-        " vector. English translations that have a cosine similarity (between"
-        " -1 and +1) of less than the threshold will not be included in the"
-        " final DataFrame.\nNOTE: this script may take a long time to run"
-        " because it needs to query the OpenAI API for translations and it"
-        " also needs to load the huge fastText models. You'll need"
-        " at least 8GB of RAM to run this process."
-    )
+    # TODO: update documentation
+    cparser = argparse.ArgumentParser(description="")
 
     cparser.add_argument("fin", help="VGT dictionary in TSV format")
     cparser.add_argument(

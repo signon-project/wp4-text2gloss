@@ -1,12 +1,15 @@
 import logging
+from functools import lru_cache
 from pathlib import Path
-from typing import Tuple
+from time import sleep
+from typing import Tuple, Literal, List, Optional
 
 import numpy as np
 import requests
 from gensim.models.keyedvectors import load_word2vec_format
 from numpy import dot
 from numpy.linalg import norm
+from requests import Session
 from tqdm import tqdm
 
 
@@ -68,3 +71,33 @@ def load_fasttext_models(load_nl: bool = True, load_en: bool = True):
     ft_en = load_word2vec_format(str(ft_en_path), binary=False) if ft_en_path else None
 
     return ft_nl, ft_en
+
+
+@lru_cache(maxsize=256)
+def get_vec_from_api(token: str, lang: Literal["English", "Dutch"], session: Optional[Session] = None) -> np.ndarray:
+    if session is None:
+        response = requests.post(rf"http://127.0.0.1:5000/token_vector/", json={"token": token, "lang": lang})
+    else:
+        response = session.post(rf"http://127.0.0.1:5000/token_vector/", json={"token": token, "lang": lang})
+
+    return np.array(response.json())
+
+
+@lru_cache(maxsize=256)
+def get_token_exists_in_ft(token: str, lang: Literal["English", "Dutch"], session: Optional[Session] = None) -> bool:
+    if session is None:
+        response = requests.post(rf"http://127.0.0.1:5000/token_exists_in_ft/", json={"token": token, "lang": lang})
+    else:
+        response = session.post(rf"http://127.0.0.1:5000/token_exists_in_ft/", json={"token": token, "lang": lang})
+
+    return response.json()
+
+
+@lru_cache
+def get_centroid(words: Tuple[str, ...], lang: Literal["English", "Dutch"], session: Optional[Session] = None) -> Optional[np.ndarray]:
+    vecs = [get_vec_from_api(w, lang=lang) for w in words if get_token_exists_in_ft(w, lang=lang, session=session)]
+
+    if not vecs:
+        return None
+
+    return np.mean(vecs, axis=0)

@@ -21,9 +21,6 @@ logging.basicConfig(
 )
 
 
-# ft_nl, ft_en = load_fasttext_models()
-
-
 def extract_concepts_from_invalid_penman(penman_str):
     # TODO: probably a regex/string-based extraction
     return []
@@ -45,19 +42,6 @@ def extract_concepts(penman_str):
                 tokens.append(target)
 
         return tokens
-
-
-def get_vec_from_api(token: str, lang: Literal["English", "Dutch"]):
-    # TODO: for development only!
-    # Takes too long to load fasttext on every separate run so we spin up an API
-    response = requests.post(rf"http://127.0.0.1:5000/token_vector", json={"token": token, "lang": lang})
-    return np.array(response.json())
-
-
-def get_token_exists_in_ft(token: str, lang: Literal["English", "Dutch"]):
-    # TODO: for development only!
-    response = requests.post(rf"http://127.0.0.1:5000/token_exists_in_ft", json={"token": token, "lang": lang})
-    return response.json()
 
 
 def find_closest(amr_en_concept: str, gloss_options: List[str]):
