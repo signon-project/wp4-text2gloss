@@ -12,24 +12,48 @@ python src/amr_to_sl_repr/process_dictionary/download_vgt_videos.py data/vgt-woo
 
 ### 1. Pre-process the VGT dictionary
 
+The VGT dictionary contains glosses with a lot of information per gloss. For this repository especially the possible
+Dutch "translations" and the videos.
 
- 
-## FastText models
+#### 0. (Optional -- paid) Add OpenAI GPT-x translations
 
-We use fastText aligned models for disambiguation purposes. The models will be downloaded automatically to `models/fasttext`.
+An optional first step is to add English translations for each gloss. This is done by translating the "possible Dutch
+translations" column. Using the OpenAI API allows us to be descriptive in our prompt. Rather than just translating the
+individual Dutch words, we can prompt the model by indicating that the given list of Dutch words are synonyms and that
+English translations of this whole "synset" should be given, rather than individual, lexical translations.
+
+Translations will be written to the "en" column.
+
+Note that to use this script, you need to have your [OpenAI API key](https://platform.openai.com/account/api-keys) as
+an enviroment variable `OPENAI_API_KEY`. Also note that using the OpenAI API is not free!
+
+```shell
+ python src/amr_to_sl_repr/process_dictionary/vgt_openai_translations.py data/vgt-woordenboek-27_03_2023.tsv data/vgt-woordenboek-27_03_2023+openai.tsv
+```
+
+#### 1. Add multilingual WordNet synset "translations" and disambiguate
+
+This script will disambiguate all the translation candidates in the "en" column, too. That includes the OpenAI 
+translations as well as the WordNet translations. This is done by means of vector similarities through fastText.
+The fastText models will be downloaded automatically to `models/fasttext`.
+
+**Before running this script** make sure that the inference server is running (see 
+[FastAPI inference server](#fastapi-inference-server))
+
+TODO
 
 ## FastAPI inference server
 
 Because loading the fastText vectors takes a LONG time, I included an `inference_server.py` that can run in the background.
 It runs a FastAPI endpoint that can be queried for fastText vectors but also for text-to-AMR.
 
-Start the server by doing into the deepest directory in `src/...` and running:
+Start the server by doing into the deepest directory in `src/amr_to_sl_repr` and running:
 
 ```shell
 uvicorn inference_server:app --port 5000
 ```
 
-This server needs to be started before running the `pipeline.py` script.
+This server needs to be started before running the `pipeline.py` and `vgt_preprocessing.py` scripts.
 
 ## Data
 
