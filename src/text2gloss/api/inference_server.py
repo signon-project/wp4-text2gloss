@@ -1,7 +1,7 @@
 from typing import List, Literal
 
-from amr_to_sl_repr.text2amr import text2penman
-from amr_to_sl_repr.vec_similarity import load_fasttext_models
+from text2gloss.text2amr import text2penman
+from text2gloss.vec_similarity import load_fasttext_models
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel

@@ -1,10 +1,11 @@
 # Format source code automatically
 style:
-	black --line-length 119 --target-version py38 src/amr_to_sl_reprr
-	isort src/mbart_amamr_to_sl_repr
+	black --line-length 119 --target-version py38 src/text2gloss
+	isort src/text2gloss
 
 # Control quality
 quality:
-	black --check --line-length 119 --target-version py38 src/amr_to_sl_reprr
-	isort --check-only src/amr_to_sl_reprr
-	flake8 src/amr_to_sl_repr --exclude __pycache__,__init__.py
+	black --check --line-length 119 --target-version py38 src/text2gloss
+	isort --check-only src/text2gloss
+	flake8 src/text2gloss
+

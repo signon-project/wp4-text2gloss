@@ -8,8 +8,8 @@ from pathlib import Path
 import pandas as pd
 import requests
 import wn
-from amr_to_sl_repr.utils import standardize_gloss
-from amr_to_sl_repr.vec_similarity import cos_sim, get_vec_from_api, get_token_exists_in_ft, get_centroid
+from text2gloss.utils import standardize_gloss
+from text2gloss.vec_similarity import cos_sim, get_vec_from_api, get_token_exists_in_ft, get_centroid
 from pandas import DataFrame, Series
 from tqdm import tqdm
 

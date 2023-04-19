@@ -9,8 +9,8 @@ from typing import Dict, List, Literal, Union
 import numpy as np
 import penman
 import requests
-from amr_to_sl_repr.utils import standardize_gloss
-from amr_to_sl_repr.vec_similarity import cos_sim
+from text2gloss.utils import standardize_gloss
+from text2gloss.vec_similarity import cos_sim
 
 
 logging.basicConfig(

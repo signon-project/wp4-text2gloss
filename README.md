@@ -7,7 +7,7 @@
 Download the corresponding videos from the URLs in the VGT dictionary.
 
 ```shell
-python src/amr_to_sl_repr/process_dictionary/download_vgt_videos.py data/vgt-woordenboek-27_03_2023.tsv data/videos error.log
+python src/text2gloss/process_dictionary/download_vgt_videos.py data/vgt-woordenboek-27_03_2023.tsv data/videos error.log
 ```
 
 ### 1. Pre-process the VGT dictionary
@@ -28,7 +28,7 @@ Note that to use this script, you need to have your [OpenAI API key](https://pla
 an enviroment variable `OPENAI_API_KEY`. Also note that using the OpenAI API is not free!
 
 ```shell
- python src/amr_to_sl_repr/process_dictionary/vgt_openai_translations.py data/vgt-woordenboek-27_03_2023.tsv data/vgt-woordenboek-27_03_2023+openai.tsv
+ python src/text2gloss/process_dictionary/vgt_openai_translations.py data/vgt-woordenboek-27_03_2023.tsv data/vgt-woordenboek-27_03_2023+openai.tsv
 ```
 
 #### 1. Add multilingual WordNet synset "translations" and disambiguate
@@ -47,7 +47,7 @@ TODO
 Because loading the fastText vectors takes a LONG time, I included an `inference_server.py` that can run in the background.
 It runs a FastAPI endpoint that can be queried for fastText vectors but also for text-to-AMR.
 
-Start the server by doing into the deepest directory in `src/amr_to_sl_repr` and running:
+Start the server by doing into the deepest directory in `src/text2gloss` and running:
 
 ```shell
 uvicorn inference_server:app --port 5000
