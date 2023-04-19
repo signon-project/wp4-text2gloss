@@ -120,13 +120,21 @@ def openai_translate(item_idx: int, nl_words: str, mgr_flags: DictProxy, model: 
         response["translations"] = json.loads(translation)
         return response
     except Exception:
-        # It is expected that some city/people names cannot be translated. In all other cases, this indicates an error.
-        if not nl_words[0].isupper():
-            logging.error(
-                f"Could not parse translation '{translation}' as list of translations (input: {nl_words}). Returning empty"
-                " list instead."
-            )
-        return response
+        try:
+            splut = re.split(r'\",\s*\"', translation)
+            splut = [re.sub(r"\[?\"?", "", t) for t in splut]
+            splut = [re.sub(r"\"?\]?", "", t) for t in splut]
+            splut = [re.sub(r"(.*)\n.*", "\\1", t) for t in splut]
+            response["translations"] = splut
+            return response
+        except Exception:
+            # It is expected that some city/people names cannot be translated. In all other cases, this indicates an error.
+            if not nl_words[0].isupper():
+                logging.error(
+                    f"Could not parse translation '{translation}' as list of translations (input: {nl_words}). Returning empty"
+                    " list instead."
+                )
+            return response
 
 
 def get_translated_idxs(df: DataFrame) -> List[int]:
