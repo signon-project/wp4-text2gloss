@@ -99,7 +99,7 @@ def concepts2glosses(tokens: List[str], dictionary: Dict[str, List[str]]) -> Lis
 
 def get_penman_from_api(text: str, src_lang: Literal["English", "Dutch"]):
     # TODO: for development only!
-    response = requests.post(r"http://127.0.0.1:5000/penman", json={"text": text, "src_lang": src_lang})
+    response = requests.get(r"http://127.0.0.1:5000/penman", json={"text": text, "src_lang": src_lang})
     return response.json()
 
 
