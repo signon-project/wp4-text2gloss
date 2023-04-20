@@ -38,8 +38,12 @@ def extract_concepts(penman_str: str) -> List[str]:
     except Exception:
         return extract_concepts_from_invalid_penman(penman_str)
     else:
+        print("AMR GRAPH", graph)
         tokens = []
         for source, role, target in graph.triples:
+            if source is None or target is None:
+                continue
+
             if role == ":location":
                 tokens.append("in")
             elif role == ":instance":
@@ -47,6 +51,8 @@ def extract_concepts(penman_str: str) -> List[str]:
                 tokens.append(target)
             elif role == ":polarity" and target == "-":
                 tokens.append("NIET")
+            elif role == ":quant":
+                tokens.append(target)
 
         return tokens
 
@@ -89,7 +95,12 @@ def concepts2glosses(tokens: List[str], dictionary: Dict[str, List[str]]) -> Lis
     :return: a list of glosses
     """
     glosses = []
+    skip_extra = 0
     for token_idx in range(len(tokens)):
+        if skip_extra:
+            skip_extra -= 1
+            continue
+
         token = tokens[token_idx]
         # We can ignore the special "quantity" identifier
         if token.endswith(("-quantity",)):
@@ -112,6 +123,9 @@ def concepts2glosses(tokens: List[str], dictionary: Dict[str, List[str]]) -> Lis
             next_token = tokens[token_idx + 1] if token_idx < len(tokens) - 1 else None
             # If this token is "city" and the next token is the city name, we can ignore "city"
             if token in ("city", "station") and next_token and next_token[0].isupper():
+                continue
+            elif token == "person" and next_token and next_token == "have-rel-role":
+                skip_extra = 1
                 continue
             else:
                 try:

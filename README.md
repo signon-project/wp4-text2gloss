@@ -95,7 +95,7 @@ The required input is the sentence to covert, the source language ('Dutch' or 'E
 that was generated in the previous step.
 
 ```shell
-text2gloss "De postbode blaft naar de hond" Dutch data/vgt-woordenboek-27_03_2023+openai+wn_transls.json
+text2gloss "I want to eat my grandma's cookies" English data/vgt-woordenboek-27_03_2023+openai+wn_transls.json
 ```
 
 
