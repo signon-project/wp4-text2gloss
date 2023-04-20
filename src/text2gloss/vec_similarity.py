@@ -5,7 +5,7 @@ from typing import Literal, Optional, Tuple
 
 import numpy as np
 import requests
-from gensim.models.keyedvectors import load_word2vec_format
+from gensim.models.keyedvectors import KeyedVectors, load_word2vec_format
 from numpy import dot
 from numpy.linalg import norm
 from requests import Session
@@ -62,7 +62,14 @@ def cos_sim(vec_a: np.ndarray, vec_b: np.ndarray) -> float:
     return dot(vec_a, vec_b) / (norm(vec_a) * norm(vec_b))
 
 
-def load_fasttext_models(load_nl: bool = True, load_en: bool = True):
+def load_fasttext_models(
+    load_nl: bool = True, load_en: bool = True
+) -> Tuple[Optional[KeyedVectors], Optional[KeyedVectors]]:
+    """Load Dutch and English aligned fastText models
+    :param load_nl: whether to load the Dutch model
+    :param load_en: whether to load the English model
+    :return: a tuple of (optional) Dutch and English fasttext models
+    """
     ft_nl_path, ft_en_path = maybe_download_ft_vectors(download_nl=load_nl, download_en=load_en)
 
     logging.info("Loading fastText word vectors")
@@ -76,6 +83,14 @@ def load_fasttext_models(load_nl: bool = True, load_en: bool = True):
 def get_vec_from_api(
     token: str, lang: Literal["English", "Dutch"], session: Optional[Session] = None, port: int = 5000
 ) -> np.ndarray:
+    """Get a fasttext vector from the API that is running on a give port. Optionally through an existing requests.Session
+
+    :param token: token to query
+    :param lang: 'English' or 'Dutch'
+    :param session: an optional requests.Session
+    :param port: an optional port
+    :return: a numpy array that represents the token
+    """
     if session is None:
         response = requests.get(rf"http://127.0.0.1:{port}/token_vector/", json={"token": token, "lang": lang})
     else:
@@ -88,6 +103,14 @@ def get_vec_from_api(
 def get_token_exists_in_ft(
     token: str, lang: Literal["English", "Dutch"], session: Optional[Session] = None, port: int = 5000
 ) -> bool:
+    """Find out whether a given token is present in the fasttext matrix.
+
+    :param token: token to query
+    :param lang: 'English' or 'Dutch'
+    :param session: an optional requests.Session
+    :param port: an optional port
+    :return: whether the given token is present in the fasttext matrix
+    """
     if session is None:
         response = requests.get(rf"http://127.0.0.1:{port}/token_exists_in_ft/", json={"token": token, "lang": lang})
     else:
@@ -100,6 +123,15 @@ def get_token_exists_in_ft(
 def get_centroid(
     words: Tuple[str, ...], lang: Literal["English", "Dutch"], session: Optional[Session] = None, port: int = 5000
 ) -> Optional[np.ndarray]:
+    """Get the centroid for any number of strings. All the words will queried with FastText and the centroid vector
+    of them will be returned as a numpy array
+
+    :param words: tuple of words
+    :param lang: 'English' or 'Dutch'
+    :param session: an optional requests.Session
+    :param port: an optional port
+    :return: a numpy array that represents the centroid between all words
+    """
     vecs = [
         get_vec_from_api(w, lang=lang, session=session, port=port)
         for w in words

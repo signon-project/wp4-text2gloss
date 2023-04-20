@@ -105,11 +105,13 @@ def openai_translate(item_idx: int, nl_words: str, mgr_flags: DictProxy, model: 
         f" input word.\n\n{nl_words}",
     }
 
-    translation = get_response([system_prompt, user_prompt], mgr_flags, model).strip()
+    translation = get_response([system_prompt, user_prompt], mgr_flags, model)
 
-    if not translation:
+    if not translation or not translation.strip():
         response["translations"] = []
         return response
+
+    translation = translation.strip()
 
     try:
         translation = re.sub(r".*(\[.*\]).*", "\\1", translation)

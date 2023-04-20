@@ -31,7 +31,7 @@ download-vgt-videos data/vgt-woordenboek-27_03_2023.tsv data/videos error.log -j
 The VGT dictionary contains glosses with a lot of information per gloss. For this repository especially the possible
 Dutch "translations" and the videos.
 
-#### 0. (Optional -- paid) Add OpenAI GPT-x translations
+#### 1.0. (Optional -- paid) Add OpenAI GPT-x translations
 
 An optional first step is to add English translations for each gloss. This is done by translating the "possible Dutch
 translations" column. Using the OpenAI API allows us to be descriptive in our prompt. Rather than just translating the
@@ -43,11 +43,13 @@ Translations will be written to the "en" column.
 Note that to use this script, you need to have your [OpenAI API key](https://platform.openai.com/account/api-keys) as
 an enviroment variable `OPENAI_API_KEY`. Also note that using the OpenAI API is not free!
 
+Required inputs are the initial dictionary TSV, and the output path to write the resulting data to.
+
 ```shell
 translate-openai data/vgt-woordenboek-27_03_2023.tsv data/vgt-woordenboek-27_03_2023+openai.tsv
 ```
 
-#### 1. Add multilingual WordNet synset "translations" and disambiguate
+#### 1.1. Add multilingual WordNet synset "translations" and disambiguate
 
 **Before running this script** make sure that the inference server is running (see 
 [FastAPI inference server](#fastapi-inference-server))
@@ -61,6 +63,9 @@ terms of semantics. This script will disambiguate all the translation candidates
 potential OpenAI translations as well as the WordNet translations. This is done by means of vector similarities through
 fastText. The fastText models will be downloaded automatically to `models/fasttext`.
 
+Required inputs is the dictionary in TSV format. Output will be written to a TSV file and a JSON file that
+start with the same name/path but that end in `+wn_transls.*`.
+
 ```shell
 translate-wn data/vgt-woordenboek-27_03_2023+openai.tsv
 ```
@@ -73,7 +78,25 @@ following keys:
 - `en2gloss`: a dictionary (str->list) of English translation to glosses
 - `nl2gloss`: a dictionary (str->list) of Dutch translation to glosses
 
-TODO: ensure that a given translation is only given for one gloss. In other words, a translation cannot be used for different glosses - it must be uniquely used.
+
+### 2. Full text2gloss pipeline
+
+**Before running this script** make sure that the inference server is running (see 
+[FastAPI inference server](#fastapi-inference-server))
+
+The fulle pipeline allows you to input a sentence and get back a sequence of glosses. Under the hood, this will
+make use of text2amr neural models, then the English PropBank concepts will be extracted from that AMR,
+and finally the processed JSON-version of the VGT dictionary (cf. 
+[step 1.1](#11-add-multilingual-wordnet-synset-translations-and-disambiguate)) will be used to find glosses that
+correspond with the extracted English concepts. If multiple gloss options are available, we use FastText to calculate
+the similarity. The gloss that is closest to the English query word is then selected as the final gloss.
+
+The required input is the sentence to covert, the source language ('Dutch' or 'English'), and the path to the JSON file
+that was generated in the previous step.
+
+```shell
+text2gloss "De postbode blaft naar de hond" Dutch data/vgt-woordenboek-27_03_2023+openai+wn_transls.json
+```
 
 
 ## FastAPI inference server

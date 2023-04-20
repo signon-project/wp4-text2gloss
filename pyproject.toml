@@ -77,3 +77,4 @@ lines_after_imports = 2
 translate-openai = "text2gloss.process_dictionary.vgt_openai_translations:main"
 download-vgt-videos = "text2gloss.process_dictionary.download_vgt_videos:main"
 translate-wn = "text2gloss.process_dictionary.vgt_preprocessing:main"
+text2gloss = "text2gloss.pipeline:main"

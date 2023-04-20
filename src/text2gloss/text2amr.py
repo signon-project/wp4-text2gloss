@@ -1,11 +1,13 @@
 from functools import lru_cache
-from typing import List, Literal, Tuple
+from typing import List, Literal, Optional, Tuple
 
+import requests
 import torch
 from mbart_amr.constraints.constraints import AMRLogitsProcessor
 from mbart_amr.data.linearization import linearized2penmanstr
 from mbart_amr.data.tokenization import AMRMBartTokenizer
 from optimum.bettertransformer import BetterTransformer
+from requests import Session
 from torch import nn, qint8
 from torch.ao.quantization import quantize_dynamic
 from transformers import LogitsProcessorList, MBartForConditionalGeneration
@@ -25,6 +27,7 @@ def get_resources(
     """Get the relevant model, tokenizer and logits_processor. The loaded model depends on whether the multilingual
     model is requested, or not. If not, an English-only model is loaded. The model can be optionally quantized
     for better performance.
+
     :param multilingual: whether or not to load the multilingual model. If not, loads the English-only model
     :param quantize: whether to quantize the model with PyTorch's 'quantize_dynamic'
     :param no_cuda: whether to disable CUDA, even if it is available
@@ -60,6 +63,7 @@ def translate(
 ) -> List[str]:
     """Translates a given text of a given source language with a given model and tokenizer. The generation is guided by
     potential keyword-arguments, which can include arguments such as max length, logits processors, etc.
+
     :param text: source text to translate
     :param src_lang: source language
     :param model: MBART model
@@ -75,10 +79,16 @@ def translate(
 
 
 def text2penman(
-    text: List[str], src_lang: Literal["English", "Dutch", "Spanish"], quantize: bool = True, no_cuda: bool = False
+    texts: List[str], src_lang: Literal["English", "Dutch", "Spanish"], quantize: bool = True, no_cuda: bool = False
 ) -> List[str]:
     """Converts a given list of sentences into a list of penman representations. Note that these are not
-    validated so it is possible that the returned penman strings are not valid!
+    validated so it is possible that the returned penman strings are not valid AMR graphs!
+
+    :param texts: list of input sentences
+    :param src_lang: source language
+    :param quantize: whether to quantize the model (faster inference)
+    :param no_cuda: whether to disable CUDA
+    :return: a list of corresponding penman representations that the model generates (not validated)
     """
     multilingual = src_lang != "English"
     model, tokenizer, logitsprocessor = get_resources(multilingual, quantize=quantize, no_cuda=no_cuda)
@@ -88,7 +98,26 @@ def text2penman(
         "logits_processor": LogitsProcessorList([logitsprocessor]),
     }
 
-    linearizeds = translate(text, src_lang, model, tokenizer, **gen_kwargs)
+    linearizeds = translate(texts, src_lang, model, tokenizer, **gen_kwargs)
     penman_strs = [linearized2penmanstr(lin) for lin in linearizeds]
 
     return penman_strs
+
+
+def get_penman_from_api(
+    text: str, src_lang: Literal["English", "Dutch"], session: Optional[Session] = None, port: int = 5000
+):
+    """Convert a given sentence to a penman representation with the API, which will use a modified MBART model for
+    text-to-AMR generation.
+
+    :param text: text to convert to AMR
+    :param src_lang: 'English' or 'Dutch'
+    :param session: an optional requests.Session
+    :param port: an optional port
+    :return: a penman representation, that is not validated so it is possible that it is not valid AMR!
+    """
+    if session is None:
+        response = requests.get(rf"http://127.0.0.1:{port}/penman/", json={"text": text, "src_lang": src_lang})
+    else:
+        response = session.get(rf"http://127.0.0.1:{port}/penman/", json={"text": text, "src_lang": src_lang})
+    return response.json()

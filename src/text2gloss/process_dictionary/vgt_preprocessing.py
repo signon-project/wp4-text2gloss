@@ -164,7 +164,7 @@ def filter_en_translations(df: DataFrame, threshold: float = 0.1, port: int = 50
             existing_cell = df.loc[df["gloss"] == gloss, "en"].item().split(", ")
             # Filter empty values
             existing_cell = [item_strip for item in existing_cell if (item_strip := item.strip())]
-            df.loc[df["gloss"] == gloss, "en"] = ", ".join(sorted(existing_cell+[en_word]))
+            df.loc[df["gloss"] == gloss, "en"] = ", ".join(sorted(existing_cell + [en_word]))
 
     return df
 

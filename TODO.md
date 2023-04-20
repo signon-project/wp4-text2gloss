@@ -1,6 +1,7 @@
 # TODO
 
 - Use LABSE instead of fasttext
+- Incorporate Euwan/Maud's code (maybe as fallback)? (translation -> rule-based -> (pseudo-gloss)
 
 ```python
 import torch
