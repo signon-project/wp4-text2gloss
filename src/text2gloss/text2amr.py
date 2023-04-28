@@ -50,7 +50,6 @@ def get_resources(
         model = quantize_dynamic(model, {nn.Linear, nn.Dropout, nn.LayerNorm}, dtype=qint8)
 
     logits_processor = AMRLogitsProcessor(tokenizer, model.config.max_length)
-
     return model, tokenizer, logits_processor
 
 
@@ -117,7 +116,7 @@ def get_penman_from_api(
     :return: a penman representation, that is not validated so it is possible that it is not valid AMR!
     """
     if session is None:
-        response = requests.get(rf"http://127.0.0.1:{port}/penman/", json={"text": text, "src_lang": src_lang})
+        response = requests.post(rf"http://127.0.0.1:{port}/penman/", json={"text": text, "src_lang": src_lang})
     else:
-        response = session.get(rf"http://127.0.0.1:{port}/penman/", json={"text": text, "src_lang": src_lang})
+        response = session.post(rf"http://127.0.0.1:{port}/penman/", json={"text": text, "src_lang": src_lang})
     return response.json()
