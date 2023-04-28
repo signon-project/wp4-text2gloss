@@ -36,6 +36,7 @@ dependencies = [
         "fastapi",
         "fasttext",
         "gensim",
+        "gunicorn",
         "mbart_amr @ git+https://github.com/BramVanroy/multilingual-text-to-amr.git",
         "networkx",
         "openai",
@@ -44,7 +45,8 @@ dependencies = [
         "penman>=1.2.2",
         "requests",
         "tqdm",
-        "uvicorn",
+        "typing_extensions",
+        "uvicorn[standard]",
         "wn",
 ]
 
