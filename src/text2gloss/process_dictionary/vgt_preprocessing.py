@@ -9,8 +9,8 @@ import pandas as pd
 import requests
 import wn
 from pandas import DataFrame, Series
-from text2gloss.utils import standardize_gloss
-from text2gloss.vec_similarity import cos_sim, get_centroid, get_token_exists_in_ft, get_vec_from_api
+from sentence_transformers import util
+from text2gloss.utils import send_request, standardize_gloss
 from tqdm import tqdm
 
 
@@ -129,23 +129,21 @@ def filter_en_translations(df: DataFrame, threshold: float = 0.1, port: int = 50
                 if found:
                     return
 
-        nl_centroid = get_centroid(nl_words, lang="Dutch", session=session, port=port)
+        nl_centroid = send_request("centroid", session=session, port=port, params={"tokens": nl_words})
 
         if nl_centroid is None:
             return
 
-        for en in en_words:
-            en = re.sub(r"^to\s+", "", en)  # Remove "to" in infinitives
-            if not get_token_exists_in_ft(en, lang="English", session=session, port=port):
-                # Do not include it if it is not found in the ft vectors!
-                print("NOPE", en)
-                continue
-            en_vec = get_vec_from_api(en, lang="English", session=session, port=port)
-            sim = cos_sim(en_vec, nl_centroid)
+        en_words = [re.sub(r"^to\s+", "", en) for en in en_words]  # Remove "to" in infinitives
+        en_vecs = send_request("vectors", session=session, port=port, params={"tokens": en_words})
+        for en_vec, en_word in zip(en_vecs, en_words):
+            sim = util.cos_sim(en_vec, nl_centroid).squeeze(dim=0).item()
             if sim >= threshold:
-                sims[en].append((std_gloss, sim))
+                sims[en_word].append((std_gloss, sim))
             else:
-                logging.info(f"Dropping {en}. Too distant from {nl_words}! (sim={sim:.2f}; threshold={threshold})")
+                logging.info(
+                    f"Dropping {en_word}. Too distant from {nl_words}! (sim={sim:.2f}; threshold={threshold})"
+                )
 
     tqdm.pandas(desc="Collecting semantic similarities")
     df.progress_apply(find_similarities, axis=1)

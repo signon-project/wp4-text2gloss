@@ -34,8 +34,6 @@ requires-python = ">=3.8"
 dependencies = [
         "accelerate",
         "fastapi",
-        "fasttext",
-        "gensim",
         "gunicorn",
         "mbart_amr @ git+https://github.com/BramVanroy/multilingual-text-to-amr.git",
         "networkx",
@@ -44,6 +42,7 @@ dependencies = [
         "pandas",
         "penman>=1.2.2",
         "requests",
+        "sentence_transformers",
         "tqdm",
         "typing_extensions",
         "uvicorn[standard]",

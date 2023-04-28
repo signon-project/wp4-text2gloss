@@ -1,13 +1,11 @@
 from functools import lru_cache
-from typing import List, Literal, Optional, Tuple
+from typing import List, Literal, Tuple
 
-import requests
 import torch
 from mbart_amr.constraints.constraints import AMRLogitsProcessor
 from mbart_amr.data.linearization import linearized2penmanstr
 from mbart_amr.data.tokenization import AMRMBartTokenizer
 from optimum.bettertransformer import BetterTransformer
-from requests import Session
 from torch import nn, qint8
 from torch.ao.quantization import quantize_dynamic
 from transformers import LogitsProcessorList, MBartForConditionalGeneration
@@ -20,7 +18,7 @@ LANGUAGES = {
 }
 
 
-@lru_cache
+@lru_cache(8)
 def get_resources(
     multilingual: bool, quantize: bool = True, no_cuda: bool = False
 ) -> Tuple[MBartForConditionalGeneration, AMRMBartTokenizer, AMRLogitsProcessor]:
@@ -101,22 +99,3 @@ def text2penman(
     penman_strs = [linearized2penmanstr(lin) for lin in linearizeds]
 
     return penman_strs
-
-
-def get_penman_from_api(
-    text: str, src_lang: Literal["English", "Dutch"], session: Optional[Session] = None, port: int = 5000
-):
-    """Convert a given sentence to a penman representation with the API, which will use a modified MBART model for
-    text-to-AMR generation.
-
-    :param text: text to convert to AMR
-    :param src_lang: 'English' or 'Dutch'
-    :param session: an optional requests.Session
-    :param port: an optional port
-    :return: a penman representation, that is not validated so it is possible that it is not valid AMR!
-    """
-    if session is None:
-        response = requests.post(rf"http://127.0.0.1:{port}/penman/", json={"text": text, "src_lang": src_lang})
-    else:
-        response = session.post(rf"http://127.0.0.1:{port}/penman/", json={"text": text, "src_lang": src_lang})
-    return response.json()

@@ -1,16 +1,18 @@
 import json
-import os
+from functools import lru_cache
 from pathlib import Path
 from traceback import print_exception
-from typing import List, Literal
+from typing import List, Literal, Tuple, Union
 
-from fastapi import FastAPI, HTTPException
+import torch.cuda
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, BaseSettings
-
-from text2gloss.pipeline import extract_concepts, concepts2glosses
-from text2gloss.text2amr import text2penman, get_resources
-from text2gloss.vec_similarity import load_fasttext_models
+from pydantic import BaseSettings
+from sentence_transformers import SentenceTransformer, util
+from text2gloss.pipeline import concepts2glosses, extract_concepts
+from text2gloss.text2amr import get_resources, text2penman
+from text2gloss.utils import standardize_gloss
+from typing_extensions import Annotated
 
 
 app = FastAPI()
@@ -23,83 +25,177 @@ app.add_middleware(
 )
 
 
-from fastapi import FastAPI, HTTPException
-
-
-# TODO: use sentence transformers
-# TODO use Annotated. e.g. to add descriptions and titles, see: https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#deprecating-parameters
-
-
 class Settings(BaseSettings):
-    load_ft: bool = False  # FastText is only needed during pre-processing, not during inference
-    load_mbart: bool = False
     json_vgt_dictionary: str = r"vgt-woordenboek-27_03_2023+openai+wn_transls.json"
+    sbert_model_name: str = "sentence-transformers/LaBSE"
+    sbert_device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 settings = Settings()
 app = FastAPI()
 
-ft_nl, ft_en = load_fasttext_models() if settings.load_ft else (None, None)
-
-_ = get_resources(multilingual=False) if settings.load_mbart else None  # Preload MBART once
-en2glosses = json.loads(Path(settings.json_vgt_dictionary).read_text(encoding="utf-8"))["en2gloss"] if settings.load_mbart else None
-
-
-class FastTextItem(BaseModel):
-    token: str
-    lang: Literal["Dutch", "English"]
+stransformer = SentenceTransformer(settings.sbert_model_name, device=settings.sbert_device)
+stransformer = SentenceTransformer(settings.sbert_model_name, device=settings.sbert_device)
+en2glosses = json.loads(Path(settings.json_vgt_dictionary).read_text(encoding="utf-8"))["en2gloss"]
 
 
-@app.post("/token_exists_in_ft/")
-def get_token_exists_in_ft(item: FastTextItem) -> bool:
-    if item.lang == "English":
-        if ft_en is None:
-            raise HTTPException(status_code=503, detail="English FastText is not available.")
-        else:
-            return item.token in ft_en
-    elif item.lang == "Dutch":
-        if ft_nl is None:
-            raise HTTPException(status_code=503, detail="Dutch FastText is not available.")
-        else:
-            return item.token in ft_nl
+@app.get("/centroid/")
+def build_tokens_centroid(
+    tokens: Annotated[
+        List[str],
+        Query(
+            title="Tokens",
+            description="List of tokens whose vectors to retrieve and average (centroid)",
+        ),
+    ]
+):
+    vectors = get_tokens_vectors(tokens)
+    return vectors.mean(axis=0)
 
 
-@app.post("/token_vector/")
-def get_token_vector(item: FastTextItem):
-    if item.lang == "English":
-        if ft_en is None:
-            raise HTTPException(status_code=503, detail="English FastText is not available.")
-        else:
-            return ft_en[item.token] if item.token in ft_en else None
-    elif item.lang == "Dutch":
-        if ft_nl is None:
-            raise HTTPException(status_code=503, detail="Dutch FastText is not available.")
-        else:
-            return ft_nl[item.token] if item.token in ft_nl else None
+@lru_cache(128)
+def encode_texts(tokens: Tuple[str, ...]):
+    return stransformer.encode(tokens)
 
 
-class PenmanItem(BaseModel):
-    text: str
-    src_lang: Literal["Dutch", "English"]
-    quantize: bool = True
-    no_cuda: bool = False
+@app.get("/vectors/")
+def get_tokens_vectors(
+    tokens: Annotated[
+        List[str],
+        Query(
+            title="Tokens",
+            description="List of tokens whose vectors to retrieve",
+        ),
+    ]
+):
+    return encode_texts(tuple(tokens))
 
 
-@app.post("/penman/")
-def get_penman(item: PenmanItem) -> List[str]:
+@app.get("/similarity/")
+def get_tokens_similarity(
+    left_token: Annotated[
+        str,
+        Query(
+            title="First token",
+        ),
+    ],
+    right_token: Annotated[
+        str,
+        Query(
+            title="Second token",
+        ),
+    ],
+):
+    vecs = get_tokens_vectors([left_token, right_token])
+    return util.cos_sim(vecs[0], vecs[1]).squeeze(dim=0).item()
+
+
+@app.get("/closest/")
+def find_closest(
+    text: Annotated[
+        str,
+        Query(
+            title="Anchor token or sentence",
+        ),
+    ],
+    candidates: Annotated[
+        List[str],
+        Query(
+            title="Token candidates",
+        ),
+    ],
+) -> str:
+    """If one English concept is linked to multiple VGT glosses, we select the "right" gloss by selecting the one
+    whose semantic similarity is closest to the English concept _or_ closer to a given sentence, like the whole input
+     sentences. To do so, the gloss is preprocessed though (removing regional variety identifiers -A, -B and removing
+      extra information in brackets, lowercased) so that, e.g.,
+
+      'ABU-DHABI(UAR)-A' becomes 'abu-dhabi'. If the gloss does not exist in FastText it is not considered as an option
+    (unless it is the only option).
+
+    :param text: concept extracted from AMR or sentence
+    :param candidates: list of possible gloss options
+    :return: the 'best' gloss
+    """
+    if len(candidates) == 1:
+        return candidates[0]
+
+    candidates_std = [standardize_gloss(gloss).lower() for gloss in candidates]
+    vecs = get_tokens_vectors([text] + candidates_std)
+    sims = util.cos_sim(vecs[0], vecs[1:]).squeeze(dim=0)
+    best_cand_idx = sims.argmax(axis=0).item()
+
+    return candidates[best_cand_idx]
+
+
+@app.get("/penman/")
+def get_penman(
+    text: Annotated[
+        str,
+        Query(
+            title="Text to convert to a penman representation",
+        ),
+    ],
+    src_lang: Annotated[
+        Literal["English", "Dutch"],
+        Query(
+            title="Language of the given text",
+        ),
+    ],
+    quantize: Annotated[
+        bool,
+        Query(
+            title="Whether to quantize the MBART model (faster)",
+        ),
+    ] = True,
+    no_cuda: Annotated[
+        bool,
+        Query(
+            title="Whether to disable CUDA",
+        ),
+    ] = True,
+) -> List[str]:
     try:
-        return text2penman([item.text], src_lang=item.src_lang, quantize=item.quantize, no_cuda=item.no_cuda)
+        return text2penman([text], src_lang=src_lang, quantize=quantize, no_cuda=no_cuda)
     except Exception as exc:
         print_exception(exc)
         raise HTTPException(status_code=500, detail="Internal server error when generating penman AMR representation.")
 
 
-@app.post("/text2gloss/")
-def run_pipeline(item: PenmanItem):
-    penman_str = get_penman(item)[0]
+@app.get("/text2gloss/")
+def run_pipeline(
+    text: Annotated[
+        str,
+        Query(
+            title="Text to convert to a penman representation",
+        ),
+    ],
+    src_lang: Annotated[
+        Literal["English", "Dutch"],
+        Query(
+            title="Language of the given text",
+        ),
+    ],
+    quantize: Annotated[
+        bool,
+        Query(
+            title="Whether to quantize the MBART model (faster)",
+        ),
+    ] = True,
+    no_cuda: Annotated[
+        bool,
+        Query(
+            title="Whether to disable CUDA",
+        ),
+    ] = False,
+) -> List[str]:
+    penman_str = get_penman(text, src_lang, quantize=quantize, no_cuda=no_cuda)[0]
     concepts = extract_concepts(penman_str)
 
     if concepts:
-        return concepts2glosses(concepts, en2glosses)
+        return concepts2glosses(concepts, en2glosses, src_sentence=text)
     else:
-        raise HTTPException(status_code=204, detail="No concepts could be extracted from the AMR so no glosses could be generated either.")
+        raise HTTPException(
+            status_code=204,
+            detail="No concepts could be extracted from the AMR so no glosses could be generated either.",
+        )
