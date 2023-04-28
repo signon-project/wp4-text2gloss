@@ -92,11 +92,14 @@ def get_vec_from_api(
     :return: a numpy array that represents the token
     """
     if session is None:
-        response = requests.get(rf"http://127.0.0.1:{port}/token_vector/", json={"token": token, "lang": lang})
+        response = requests.post(rf"http://127.0.0.1:{port}/token_vector/", json={"token": token, "lang": lang})
     else:
-        response = session.get(rf"http://127.0.0.1:{port}/token_vector/", json={"token": token, "lang": lang})
+        response = session.post(rf"http://127.0.0.1:{port}/token_vector/", json={"token": token, "lang": lang})
 
-    return np.array(response.json())
+    if vec := response.json():
+        return np.array(vec)
+    else:
+        return None
 
 
 @lru_cache(maxsize=256)
@@ -112,9 +115,9 @@ def get_token_exists_in_ft(
     :return: whether the given token is present in the fasttext matrix
     """
     if session is None:
-        response = requests.get(rf"http://127.0.0.1:{port}/token_exists_in_ft/", json={"token": token, "lang": lang})
+        response = requests.post(rf"http://127.0.0.1:{port}/token_exists_in_ft/", json={"token": token, "lang": lang})
     else:
-        response = session.get(rf"http://127.0.0.1:{port}/token_exists_in_ft/", json={"token": token, "lang": lang})
+        response = session.post(rf"http://127.0.0.1:{port}/token_exists_in_ft/", json={"token": token, "lang": lang})
 
     return response.json()
 
