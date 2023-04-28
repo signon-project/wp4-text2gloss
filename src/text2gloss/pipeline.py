@@ -1,14 +1,12 @@
-import json
 import logging
 import re
 import sys
-from os import PathLike
-from pathlib import Path
-from typing import Dict, List, Literal, Union
+from typing import Dict, List, Literal
 
 import numpy as np
 import penman
-from text2gloss.text2amr import get_penman_from_api
+import requests
+
 from text2gloss.utils import standardize_gloss
 from text2gloss.vec_similarity import cos_sim, get_token_exists_in_ft, get_vec_from_api
 
@@ -137,17 +135,11 @@ def concepts2glosses(tokens: List[str], dictionary: Dict[str, List[str]]) -> Lis
     return glosses
 
 
-def run_pipeline(text: str, src_lang: Literal["Dutch", "English"], dictionary_file: Union[str, PathLike]):
-    en2glosses = json.loads(Path(dictionary_file).read_text(encoding="utf-8"))["en2gloss"]
-
-    penman_str = get_penman_from_api(text, src_lang=src_lang)[0]
-    print("GENERATED PENMAN", penman_str)
-    concepts = extract_concepts(penman_str)
-    print("EXTRACTED CONCEPTS", concepts)
-
-    if concepts:
-        glosses = concepts2glosses(concepts, en2glosses)
-        print("GLOSSES", glosses)
+def run_pipeline(text: str, src_lang: Literal["Dutch", "English"], port: int = 5000):
+    response = requests.post(rf"http://127.0.0.1:{port}/text2gloss/", json={"text": text, "lang": src_lang})
+    if response:
+        print(response.json())
+        return response.json()
 
 
 def main():
@@ -166,6 +158,12 @@ def main():
     cparser.add_argument(
         "dictionary_file",
         help="Path to the VGT dictionary as JSON archive, containing 'nl2gloss'" " and 'en2gloss' keys",
+    )
+    cparser.add_argument(
+        "--port",
+        type=int,
+        default=5000,
+        help="Local port that the inference server is running on. Not used when" " '--no_fasttext' is in effect.",
     )
 
     run_pipeline(**vars(cparser.parse_args()))
