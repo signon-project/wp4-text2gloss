@@ -1,18 +1,19 @@
 import json
 from functools import lru_cache
 from pathlib import Path
-from traceback import print_exception
 from typing import List, Literal, Tuple, Union
 
 import numpy as np
 import torch.cuda
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from mbart_amr.data.linearization import linearized2penmanstr
 from pydantic import BaseSettings
 from sentence_transformers import SentenceTransformer, util
 from text2gloss.pipeline import concepts2glosses, extract_concepts
-from text2gloss.text2amr import get_resources, text2penman
+from text2gloss.text2amr import get_resources, translate
 from text2gloss.utils import standardize_gloss
+from transformers import LogitsProcessorList
 from typing_extensions import Annotated
 
 
@@ -29,13 +30,29 @@ app.add_middleware(
 class Settings(BaseSettings):
     json_vgt_dictionary: str = r"vgt-woordenboek-27_03_2023+openai+wn_transls.json"
     sbert_model_name: str = "sentence-transformers/LaBSE"
-    sbert_device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    sbert_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
+
+    mbart_input_lang: Literal["English", "Dutch"] = "English"
+    mbart_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
+    mbart_quantize: bool = True
+    mbart_num_beams: int = 3
 
 
 settings = Settings()
 app = FastAPI()
 
 stransformer = SentenceTransformer(settings.sbert_model_name, device=settings.sbert_device)
+amr_model, amr_tokenizer, amr_logitsprocessor = get_resources(
+    multilingual=settings.mbart_input_lang != "English",
+    quantize=settings.mbart_quantize,
+    no_cuda=settings.mbart_device == "cpu",
+)
+amr_gen_kwargs = {
+    "max_length": amr_model.config.max_length,
+    "num_beams": settings.mbart_num_beams if settings.mbart_num_beams else amr_model.config.num_beams,
+    "logits_processor": LogitsProcessorList([amr_logitsprocessor]),
+}
+
 en2glosses = json.loads(Path(settings.json_vgt_dictionary).read_text(encoding="utf-8"))["en2gloss"]
 
 
@@ -128,74 +145,21 @@ def find_closest(
     return candidates[best_cand_idx]
 
 
-@app.get("/penman/")
-def get_penman(
-    text: Annotated[
-        str,
-        Query(
-            title="Text to convert to a penman representation",
-        ),
-    ],
-    src_lang: Annotated[
-        Literal["English", "Dutch"],
-        Query(
-            title="Language of the given text",
-        ),
-    ],
-    quantize: Annotated[
-        bool,
-        Query(
-            title="Whether to quantize the MBART model (faster)",
-        ),
-    ] = True,
-    no_cuda: Annotated[
-        bool,
-        Query(
-            title="Whether to disable CUDA",
-        ),
-    ] = True,
-) -> List[str]:
-    try:
-        return text2penman([text], src_lang=src_lang, quantize=quantize, no_cuda=no_cuda)
-    except Exception as exc:
-        print_exception(exc)
-        raise HTTPException(status_code=500, detail="Internal server error when generating penman AMR representation.")
-
-
 @app.get("/text2gloss/")
 def run_pipeline(
-    text: Annotated[
-        str,
+    texts: Annotated[
+        List[str],
         Query(
-            title="Text to convert to a penman representation",
+            title="Texts to convert to a penman representation",
         ),
-    ],
-    src_lang: Annotated[
-        Literal["English", "Dutch"],
-        Query(
-            title="Language of the given text",
-        ),
-    ] = "English",
-    quantize: Annotated[
-        bool,
-        Query(
-            title="Whether to quantize the MBART model (faster)",
-        ),
-    ] = True,
-    no_cuda: Annotated[
-        bool,
-        Query(
-            title="Whether to disable CUDA",
-        ),
-    ] = False,
-) -> List[str]:
-    penman_str = get_penman(text, src_lang, quantize=quantize, no_cuda=no_cuda)[0]
-    concepts = extract_concepts(penman_str)
+    ]
+) -> List[List[str]]:
+    linearizeds = translate(texts, settings.mbart_input_lang, amr_model, amr_tokenizer, **amr_gen_kwargs)
+    penman_strs = [linearized2penmanstr(lin) for lin in linearizeds]
+    batch_concepts = [extract_concepts(penman_str) for penman_str in penman_strs]
 
-    if concepts:
-        return concepts2glosses(concepts, en2glosses, src_sentence=text)
-    else:
-        raise HTTPException(
-            status_code=204,
-            detail="No concepts could be extracted from the AMR so no glosses could be generated either.",
-        )
+    glosses = []
+    for concepts, text in zip(batch_concepts, texts):
+        glosses.append(concepts2glosses(concepts, en2glosses, src_sentence=text))
+
+    return glosses

@@ -18,7 +18,6 @@ LANGUAGES = {
 }
 
 
-@lru_cache(8)
 def get_resources(
     multilingual: bool, quantize: bool = True, no_cuda: bool = False
 ) -> Tuple[MBartForConditionalGeneration, AMRMBartTokenizer, AMRLogitsProcessor]:
@@ -47,6 +46,7 @@ def get_resources(
     elif quantize:  # Quantization not supported on CUDA
         model = quantize_dynamic(model, {nn.Linear, nn.Dropout, nn.LayerNorm}, dtype=qint8)
 
+    model.eval()
     logits_processor = AMRLogitsProcessor(tokenizer, model.config.max_length)
     return model, tokenizer, logits_processor
 
@@ -61,7 +61,7 @@ def translate(
     """Translates a given text of a given source language with a given model and tokenizer. The generation is guided by
     potential keyword-arguments, which can include arguments such as max length, logits processors, etc.
 
-    :param text: source text to translate
+    :param text: source texts to translate
     :param src_lang: source language
     :param model: MBART model
     :param tokenizer: MBART tokenizer
@@ -69,33 +69,8 @@ def translate(
     :return: the translation (linearized AMR graph)
     """
     tokenizer.src_lang = LANGUAGES[src_lang]
-    encoded = tokenizer(text, return_tensors="pt")
+    encoded = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
     encoded = {k: v.to(model.device) for k, v in encoded.items()}
-    generated = model.generate(**encoded, **gen_kwargs).cpu()
+    with torch.no_grad():
+        generated = model.generate(**encoded, **gen_kwargs).cpu()
     return tokenizer.decode_and_fix(generated)
-
-
-def text2penman(
-    texts: List[str], src_lang: Literal["English", "Dutch", "Spanish"], quantize: bool = True, no_cuda: bool = False
-) -> List[str]:
-    """Converts a given list of sentences into a list of penman representations. Note that these are not
-    validated so it is possible that the returned penman strings are not valid AMR graphs!
-
-    :param texts: list of input sentences
-    :param src_lang: source language
-    :param quantize: whether to quantize the model (faster inference)
-    :param no_cuda: whether to disable CUDA
-    :return: a list of corresponding penman representations that the model generates (not validated)
-    """
-    multilingual = src_lang != "English"
-    model, tokenizer, logitsprocessor = get_resources(multilingual, quantize=quantize, no_cuda=no_cuda)
-    gen_kwargs = {
-        "max_length": model.config.max_length,
-        "num_beams": model.config.num_beams,
-        "logits_processor": LogitsProcessorList([logitsprocessor]),
-    }
-
-    linearizeds = translate(texts, src_lang, model, tokenizer, **gen_kwargs)
-    penman_strs = [linearized2penmanstr(lin) for lin in linearizeds]
-
-    return penman_strs

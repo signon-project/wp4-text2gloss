@@ -123,11 +123,14 @@ def concepts2glosses(tokens: List[str], dictionary: Dict[str, List[str]], src_se
     return glosses
 
 
-def run_pipeline(text: str, src_lang: Literal["Dutch", "English"], port: int = 5000, verbose: bool = True):
-    response = send_request("text2gloss", port=port, params={"text": text, "src_lang": src_lang})
+def run_pipeline(text: str, port: int = 5000, verbose: bool = True):
+    texts = [t.strip() for t in text.split("|||")]
+    glosses = send_request("text2gloss", port=port, params={"texts": texts})
     if verbose:
-        print(response)
-    return response
+        for gloss_repr, text in zip(glosses, texts):
+            print(f"TEXT: {text}\nGLOSSES: {gloss_repr}\n")
+
+    return glosses
 
 
 def main():
@@ -141,8 +144,11 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    cparser.add_argument("text", help="Text to translate to glosses")
-    cparser.add_argument("--src_lang", help="Source language", default="English", choices=("English", "Dutch"))
+    cparser.add_argument(
+        "text",
+        help="Text to translate to glosses. You can query multiple texts by separating them"
+        " three pipe characters, e.g. 'my first text ||| my second text",
+    )
     cparser.add_argument(
         "--port",
         type=int,
