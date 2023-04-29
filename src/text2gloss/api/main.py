@@ -1,20 +1,33 @@
 import json
+import logging
+import re
+import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Literal, Tuple, Union
+from typing import List, Literal, Tuple
 
 import numpy as np
+import penman
 import torch.cuda
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from mbart_amr.data.linearization import linearized2penmanstr
 from pydantic import BaseSettings
 from sentence_transformers import SentenceTransformer, util
-from text2gloss.pipeline import concepts2glosses, extract_concepts
 from text2gloss.text2amr import get_resources, translate
 from text2gloss.utils import standardize_gloss
 from transformers import LogitsProcessorList
 from typing_extensions import Annotated
+
+
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    datefmt="%m/%d/%Y %H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    level=logging.INFO,
+)
+
+logging.getLogger("penman").setLevel(logging.WARNING)
 
 
 app = FastAPI()
@@ -160,6 +173,107 @@ def run_pipeline(
 
     glosses = []
     for concepts, text in zip(batch_concepts, texts):
-        glosses.append(concepts2glosses(concepts, en2glosses, src_sentence=text))
+        glosses.append(concepts2glosses(concepts, src_sentence=text))
+
+    return glosses
+
+
+def extract_concepts_from_invalid_penman(penman_str):
+    # TODO: probably a regex/string-based extraction
+    return []
+
+
+def extract_concepts(penman_str: str) -> List[str]:
+    """Extract concepts from a given penman string
+    :param penman_str: AMR in penman format
+    :return: a list of concepts (str)
+    """
+    try:
+        graph = penman.decode(penman_str)
+    except Exception:
+        return extract_concepts_from_invalid_penman(penman_str)
+    else:
+        logging.info("AMR GRAPH")
+        logging.info(graph)
+        tokens = []
+        for source, role, target in graph.triples:
+            if source is None or target is None:
+                continue
+
+            if role == ":location":
+                tokens.append("in")
+            elif role == ":instance":
+                if target == "amr-unknown":
+                    # Questions
+                    continue
+                target = re.sub(r"(\w)-\d+$", "\\1", target)  # Remove frame/concept sense ID
+                tokens.append(target)
+            elif role == ":polarity" and target == "-":
+                tokens.append("NIET")
+            elif role == ":quant":
+                # :quant can sometimes occur as precursor to other quant, e.g.:
+                #   ('c', ':quant', 'v'): [Push(v)],
+                #     ('v', ':instance', 'volume-quantity'): [],
+                #     ('v', ':quant', '2'): [],
+                # Se we want to ignore the first quant
+                if not (len(target) == 1 and target.isalpha()):
+                    tokens.append(target)
+
+        logging.info(f"Extracted concepts: {tokens}")
+        return tokens
+
+
+def concepts2glosses(tokens: List[str], src_sentence: str) -> List[str]:
+    """Convert a list of tokens/concepts (extracted from AMR) to glosses by using
+    mappings that were collected from the VGT dictionary.
+
+    :param tokens: list of AMR tokens/concepts
+    :param src_sentence: full input sentence
+    :return: a list of glosses
+    """
+    glosses = []
+    skip_extra = 0
+
+    for token_idx in range(len(tokens)):
+        if skip_extra:
+            skip_extra -= 1
+            continue
+
+        token = tokens[token_idx]
+        # We can ignore the special "quantity" identifier
+        if token.endswith(("-quantity",)):
+            continue
+        elif token == "cause":
+            glosses.append("[PU]")
+        elif token in "i":
+            glosses.append("WG-1")
+        elif token == "you":
+            glosses.append("WG-2")
+        elif token in ("he", "she", "they"):
+            glosses.append("WG-3")
+        elif token == "we":
+            glosses.append("WG-4")
+        elif token.isdigit():  # Copy digits
+            glosses.append(token)
+        elif token.startswith('"') and token.endswith('"'):  # Copy literal items but remove quotes
+            glosses.append(token[1:-1])
+        else:  # Conditions that require info about the next token
+            next_token = tokens[token_idx + 1] if token_idx < len(tokens) - 1 else None
+            # If this token is "city" and the next token is the city name, we can ignore "city"
+            if token in ("city", "station") and next_token and next_token[0].isupper():
+                continue
+            elif token == "person" and next_token and next_token == "have-rel-role":
+                skip_extra = 1
+                continue
+            else:
+                try:
+                    best_match = find_closest(text=src_sentence, candidates=en2glosses[token])
+                    glosses.append(best_match)
+
+                    logging.info(f"Best gloss for {token} (out of {en2glosses[token]}): {best_match}")
+                except KeyError:
+                    glosses.append(token)
+
+    logging.info(f"Glosses: {glosses}")
 
     return glosses
