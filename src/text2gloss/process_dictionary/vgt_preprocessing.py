@@ -81,7 +81,7 @@ def remove_brackets(word: str):
 
 
 def filter_en_translations(df: DataFrame, threshold: float = 0.1, port: int = 5000):
-    """Uses fastText embeddings and calculates the centroid of the words in the verified "possible translations" (Dutch) column,
+    """Uses LABSE embeddings and calculates the centroid of the words in the verified "possible translations" (Dutch) column,
     and for each suggested WordNet translation (English) we calculate the cosine similarity to this centroid, so output value
     is between -1 and +1, NOT between 0 and 1!
 
@@ -117,8 +117,7 @@ def filter_en_translations(df: DataFrame, threshold: float = 0.1, port: int = 50
 
         # For names/cities that start with a capital letter and that have an equivalent translation in English
         if len(nl_words) == 1:
-            nl_word = nl_words[0]
-            if nl_word[0].isupper():
+            if nl_words[0][0].isupper():
                 found = False
                 for en in en_words:
                     if en[0].isupper():
@@ -167,9 +166,9 @@ def filter_en_translations(df: DataFrame, threshold: float = 0.1, port: int = 50
     return df
 
 
-def process_vgt_dictionary(fin: str, threshold: float = 0.1, no_fasttext: bool = False, port: int = 5000) -> Path:
+def process_vgt_dictionary(fin: str, threshold: float = 0.1, port: int = 5000) -> Path:
     """Generate WordNet translations for the words in the "possible translation" column in the VGT dictionary.
-    Then, filter those possible translations by comparing them with the centroid fastText vector. English translations
+    Then, filter those possible translations by comparing them with the centroid LABSE vector. English translations
     that have a cosine similarity (between -1 and +1) of less than the threshold will not be included in the final
     DataFrame.
 
@@ -179,9 +178,7 @@ def process_vgt_dictionary(fin: str, threshold: float = 0.1, no_fasttext: bool =
     Returns the path to the written JSON file
 
     :param fin: path to the VGT dictionary in TSV format
-    :param no_fasttext: whether to disable fastText filtering of results
-    :param threshold: similarity threshold. Lower similarity English words will not be included. Will not be used if
-    'no_fasttext is True
+    :param threshold: similarity threshold. Lower similarity English words will not be included.
     """
     pfin = Path(fin).resolve()
 
@@ -194,8 +191,7 @@ def process_vgt_dictionary(fin: str, threshold: float = 0.1, no_fasttext: bool =
     df = add_en_translations(df)
 
     # Filter/disambiguate translations
-    if not no_fasttext:
-        df = filter_en_translations(df, threshold=threshold, port=port)
+    df = filter_en_translations(df, threshold=threshold, port=port)
 
     if not had_en_column:
         cols = list(df.columns)
@@ -249,7 +245,7 @@ def main():
         description="'Translates' the VGT dictionary via multilingual WordNet by finding Dutch synsets in Open"
         " Multilingual WordNet, their corresponding English synset, and all the words belonging to that"
         " synset. This ccan yield translations that are out-of-context. Therefore we also disambiguate by"
-        " means of aligned fastText vectors. By comparing the vector of every English candidate"
+        " means of LABSE vectors. By comparing the vector of every English candidate"
         " translation with the centroid of the Dutch words' vectors, we can filter out words whose"
         " similarity to the Dutch words is too low.\nThe script will produce a modified TSV file with an"
         " 'en' column, as well as a JSON file with gloss-to-english translations (gloss2en), "
@@ -262,17 +258,14 @@ def main():
         "-t",
         "--threshold",
         type=float,
-        default=0.1,
+        default=0.5,
         help="similarity threshold. Lower similarity English words will not be included",
-    )
-    cparser.add_argument(
-        "--no_fasttext", action="store_true", help="whether to disable the ambiguity filtering with fastText"
     )
     cparser.add_argument(
         "--port",
         type=int,
         default=5000,
-        help="Local port that the inference server is running on. Not used when" " '--no_fasttext' is in effect.",
+        help="Local port that the inference server is running on.",
     )
 
     process_vgt_dictionary(**vars(cparser.parse_args()))
