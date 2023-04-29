@@ -92,17 +92,17 @@ def openai_translate(item_idx: int, nl_words: str, mgr_flags: DictProxy, model: 
 
     system_prompt = {
         "role": "system",
-        "content": "You are a helpful assistant that translates Dutch to English according to the requirements that are"
-        " given to you.",
+        "content": "You are a helpful assistant that translates Dutch (specifically Flemish; as spoken in Flanders) to"
+        " English according to the requirements that are given to you.",
     }
 
     user_prompt = {
         "role": "user",
-        "content": f"Consider the following list of one or more Dutch words. They are synonyms. Provide one or more"
-        f" translations of this Dutch 'synset' of concepts in English. Format the resulting list of possible"
-        f" translations as a JSON list (without markdown ```json``` marker) and do not add an explanation or"
-        f" extra information. If you cannot translate a word (such as a city or a name), simply copy the"
-        f" input word.\n\n{nl_words}",
+        "content": f"Consider the following list of one or more Dutch (specifically Flemish) words. They are synonyms."
+        f" Provide one or more translations of this Dutch 'synonym set' of concepts in English. Format the"
+        f" resulting list of possible translations as a JSON list (without markdown ```json``` marker) and do not add"
+        f"an explanation or extra information. If you cannot translate a word (such as a city or a name),"
+        f" simply copy the input word.\n\n{nl_words}",
     }
 
     translation = get_response([system_prompt, user_prompt], mgr_flags, model)
@@ -198,10 +198,14 @@ def translate_vgt_with_openai(
                 logging.warning(f"Done processing. Had at least {failed_counter:,} failures. See the logs above.")
 
         if mgr_flags["rate_limit_reached"]:
-            logging.error("Had to abort early due to the OpenAI rate limit. Seems like you hit your limit!")
+            logging.error("Had to abort early due to the OpenAI rate limit. Seems like you hit your limit! The"
+                          " generated translations have been saved. You can run the script again the continue where"
+                          " you left off.")
 
         if mgr_flags["total_failures"] >= 3:
-            logging.error("Had more than 3 catastrophic failures. Will stop processing. See the error messages above.")
+            logging.error("Had more than 3 catastrophic failures. Will stop processing. See the error messages above."
+                          " The generated translations have been saved. You can run the script again the continue"
+                          " where you left off.")
 
     cols = df.columns.tolist()
     reordered_cols = cols[:3] + [cols[-1]] + cols[3:-1]
@@ -216,14 +220,18 @@ def main():
         "Translate the 'possible translations' (Dutch) in the VGT dictionary to English"
         " with a GPT model. This is useful because we can give it a cluster of words"
         " and ask for similar English words. As such, it is 'context-sensitive'; taking"
-        " into account the whole cluster of words.",
+        " into account the whole cluster of words.\nIf you get a RateLimitError concerning using more tokens per minute"
+        " than is accepted, you can try lowering --max_parallel_requests to a smaller number.\n"
+        " To use this script, you need access to the OpenAI API. Make sure your API key is set as an environment"
+        " variable OPENAI_API_KEY. Note: THIS WILL INCUR COSTS.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     cparser.add_argument("fin", help="VGT dictionary in TSV format")
     cparser.add_argument("fout", help="Output file to write the updated TSV to")
     cparser.add_argument("-m", "--model", default="gpt-3.5-turbo", help="Chat model to use")
-    cparser.add_argument("-j", "--max_parallel_requests", default=16, type=int, help="Max. parallel requests to query")
+    cparser.add_argument("-j", "--max_parallel_requests", default=6, type=int,
+                         help="Max. parallel requests to query. Lower this if you are getting RateLimit issues.")
     cparser.add_argument("-i", "--first_n", default=None, type=int, help="For debugging: only translate first n items")
     translate_vgt_with_openai(**vars(cparser.parse_args()))
 
