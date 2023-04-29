@@ -61,7 +61,7 @@ with the Dutch one. This gives us a set of potential, very broad, translations.
 Therefore, we use disambiguation to filter out English translations that are too "far" from the Dutch translations in
 terms of semantics. This script will disambiguate all the translation candidates in the "en" column. That includes the
 potential OpenAI translations as well as the WordNet translations. This is done by means of vector similarities through
-fastText. The fastText models will be downloaded automatically to `models/fasttext`.
+[LABSE](https://huggingface.co/sentence-transformers/LaBSE).
 
 Required inputs is the dictionary in TSV format. Output will be written to a TSV file and a JSON file that
 start with the same name/path but that end in `+wn_transls.*`.
@@ -75,7 +75,7 @@ following keys:
 
 - `gloss2en`: a dictionary (str->list) of gloss to potential English translations
 - `gloss2nl`: a dictionary (str->list) of gloss to potential Dutch translations
-- `en2gloss`: a dictionary (str->list) of English translation to glosses
+- `en2gloss`: a dictionary (str->list) of English translation to glosses (most important)
 - `nl2gloss`: a dictionary (str->list) of Dutch translation to glosses
 
 
@@ -88,7 +88,7 @@ The fulle pipeline allows you to input a sentence and get back a sequence of glo
 make use of text2amr neural models, then the English PropBank concepts will be extracted from that AMR,
 and finally the processed JSON-version of the VGT dictionary (cf. 
 [step 1.1](#11-add-multilingual-wordnet-synset-translations-and-disambiguate)) will be used to find glosses that
-correspond with the extracted English concepts. If multiple gloss options are available, we use FastText to calculate
+correspond with the extracted English concepts. If multiple gloss options are available, we use LABSE to calculate
 the similarity. The gloss that is closest to the English query word is then selected as the final gloss.
 
 The required input is the sentence to covert, the source language ('Dutch' or 'English'), and the path to the JSON file
@@ -101,21 +101,22 @@ text2gloss "I want to eat my grandma's cookies" English data/vgt-woordenboek-27_
 
 ## FastAPI inference server
 
-Because loading the fastText vectors takes a LONG time, I included an `inference_server.py` that can run in the background.
-It runs a FastAPI endpoint that can be queried for fastText vectors but also for text-to-AMR.
+An inference server is included to serve the MBART AMR pipeline as well as LABSE vector creation.
 
 Start the server by going into `src/text2gloss/api` and running:
 
 ```shell
-uvicorn inference_server:app --port 5000
+uvicorn main:app --port 5000
 ```
 
-This server needs to be started before running the `pipeline.py` and `vgt_preprocessing.py` scripts.
+Alternatively, you can use the Dockerfile to set up the server.
 
-## Data
+```shell
+docker build -t text2gloss-vgt-img .
+docker run --rm -d --name text2gloss -p 5000:5000 text2gloss-vgt-img
+```
 
-I recommend to keep a directory `data` in the highest position (next to `src` and `models`). I recommend to keep the
-VGT dictionary (as TSV/JSON) in here for easy access.
+This server needs to be started before running the `text2gloss` and `translate-wn` scripts.
 
 ## LICENSE
 
