@@ -198,14 +198,18 @@ def translate_vgt_with_openai(
                 logging.warning(f"Done processing. Had at least {failed_counter:,} failures. See the logs above.")
 
         if mgr_flags["rate_limit_reached"]:
-            logging.error("Had to abort early due to the OpenAI rate limit. Seems like you hit your limit! The"
-                          " generated translations have been saved. You can run the script again the continue where"
-                          " you left off.")
+            logging.error(
+                "Had to abort early due to the OpenAI rate limit. Seems like you hit your limit! The"
+                " generated translations have been saved. You can run the script again the continue where"
+                " you left off."
+            )
 
         if mgr_flags["total_failures"] >= 3:
-            logging.error("Had more than 3 catastrophic failures. Will stop processing. See the error messages above."
-                          " The generated translations have been saved. You can run the script again the continue"
-                          " where you left off.")
+            logging.error(
+                "Had more than 3 catastrophic failures. Will stop processing. See the error messages above."
+                " The generated translations have been saved. You can run the script again the continue"
+                " where you left off."
+            )
 
     cols = df.columns.tolist()
     reordered_cols = cols[:3] + [cols[-1]] + cols[3:-1]
@@ -230,8 +234,13 @@ def main():
     cparser.add_argument("fin", help="VGT dictionary in TSV format")
     cparser.add_argument("fout", help="Output file to write the updated TSV to")
     cparser.add_argument("-m", "--model", default="gpt-3.5-turbo", help="Chat model to use")
-    cparser.add_argument("-j", "--max_parallel_requests", default=6, type=int,
-                         help="Max. parallel requests to query. Lower this if you are getting RateLimit issues.")
+    cparser.add_argument(
+        "-j",
+        "--max_parallel_requests",
+        default=6,
+        type=int,
+        help="Max. parallel requests to query. Lower this if you are getting RateLimit issues.",
+    )
     cparser.add_argument("-i", "--first_n", default=None, type=int, help="For debugging: only translate first n items")
     translate_vgt_with_openai(**vars(cparser.parse_args()))
 
