@@ -4,6 +4,7 @@ from pathlib import Path
 from traceback import print_exception
 from typing import List, Literal, Tuple, Union
 
+import numpy as np
 import torch.cuda
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,7 +36,6 @@ settings = Settings()
 app = FastAPI()
 
 stransformer = SentenceTransformer(settings.sbert_model_name, device=settings.sbert_device)
-stransformer = SentenceTransformer(settings.sbert_model_name, device=settings.sbert_device)
 en2glosses = json.loads(Path(settings.json_vgt_dictionary).read_text(encoding="utf-8"))["en2gloss"]
 
 
@@ -50,7 +50,7 @@ def build_tokens_centroid(
     ]
 ):
     vectors = get_tokens_vectors(tokens)
-    return vectors.mean(axis=0)
+    return np.mean(vectors, axis=0).tolist()
 
 
 @lru_cache(128)
@@ -68,7 +68,7 @@ def get_tokens_vectors(
         ),
     ]
 ):
-    return encode_texts(tuple(tokens))
+    return encode_texts(tuple(tokens)).tolist()
 
 
 @app.get("/similarity/")
@@ -175,7 +175,7 @@ def run_pipeline(
         Query(
             title="Language of the given text",
         ),
-    ],
+    ] = "English",
     quantize: Annotated[
         bool,
         Query(
