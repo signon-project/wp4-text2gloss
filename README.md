@@ -116,6 +116,23 @@ docker build -t text2gloss-vgt-img .
 docker run --rm -d --name text2gloss -p 5000:5000 text2gloss-vgt-img
 ```
 
+Some configuration is possible. Below you find them (but you should add them as uppercase) with their type and default
+value. If for instance you want to make sure that the models are NOT using a GPU, you can use
+`SBERT_DEVICE="cpu" MBART_DEVICE="cpu"`. To set these environment variables in Docker, use the --env option with
+`docker run`.
+
+```python
+json_vgt_dictionary: str = r"vgt-woordenboek-27_03_2023+openai+wn_transls.json"
+
+sbert_model_name: str = "sentence-transformers/LaBSE"
+sbert_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
+
+mbart_input_lang: Literal["English", "Dutch"] = "English"
+mbart_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
+mbart_quantize: bool = True
+mbart_num_beams: int = 3
+```
+
 This server needs to be started before running the `text2gloss` and `translate-wn` scripts.
 
 ## LICENSE
