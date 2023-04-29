@@ -1,14 +1,12 @@
-from functools import lru_cache
 from typing import List, Literal, Tuple
 
 import torch
 from mbart_amr.constraints.constraints import AMRLogitsProcessor
-from mbart_amr.data.linearization import linearized2penmanstr
 from mbart_amr.data.tokenization import AMRMBartTokenizer
 from optimum.bettertransformer import BetterTransformer
 from torch import nn, qint8
 from torch.ao.quantization import quantize_dynamic
-from transformers import LogitsProcessorList, MBartForConditionalGeneration
+from transformers import MBartForConditionalGeneration
 
 
 LANGUAGES = {
