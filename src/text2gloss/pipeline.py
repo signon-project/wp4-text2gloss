@@ -2,13 +2,10 @@ from text2gloss.utils import send_request
 
 
 def run_pipeline(text: str, port: int = 5000, verbose: bool = True):
-    texts = [t.strip() for t in text.split("|||")]
-    glosses = send_request("text2gloss", port=port, params={"texts": texts})
+    glosses = send_request("text2gloss", port=port, params={"text": text})
     if verbose and glosses:
-        msg = []
-        for gloss_repr, text in zip(glosses, texts):
-            msg.append(f"TEXT: {text}\nGLOSSES: {gloss_repr}")
-        print("\n\n".join(msg))
+        print("text", text)
+        print(glosses)
 
     return glosses
 
@@ -26,8 +23,7 @@ def main():
 
     cparser.add_argument(
         "text",
-        help="Text to translate to glosses. You can query multiple texts by separating them"
-        " three pipe characters, e.g. 'my first text ||| my second text",
+        help="Text to translate to glosses",
     )
     cparser.add_argument(
         "--port",
