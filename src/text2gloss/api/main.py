@@ -165,6 +165,13 @@ def run_pipeline(
         Query(
             title="Text to convert to a penman representation",
         ),
+    ],
+    output_sl: Annotated[
+        Literal["VGT"],
+        Query(
+            title="Which language to use to output",
+            default="VGT"
+        ),
     ]
 ) -> Dict[str, Any]:
     linearizeds = translate([text], settings.mbart_input_lang, amr_model, amr_tokenizer, **amr_gen_kwargs)
