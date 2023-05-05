@@ -29,7 +29,6 @@ logging.basicConfig(
 
 logging.getLogger("penman").setLevel(logging.WARNING)
 
-
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -166,13 +165,7 @@ def run_pipeline(
             title="Text to convert to a penman representation",
         ),
     ],
-    output_sl: Annotated[
-        Literal["VGT"],
-        Query(
-            title="Which language to use to output",
-            default="VGT"
-        ),
-    ]
+    output_sl: Annotated[Literal["VGT"], Query(title="Which language to use to output")] = "VGT",
 ) -> Dict[str, Any]:
     linearizeds = translate([text], settings.mbart_input_lang, amr_model, amr_tokenizer, **amr_gen_kwargs)
     penman_str = linearized2penmanstr(linearizeds[0])
@@ -183,7 +176,7 @@ def run_pipeline(
 
 
 def extract_concepts_from_invalid_penman(penman_str):
-    # TODO: probably a regex/string-based extraction
+    # TODO: probably a regex/string-based extraction?
     return []
 
 
