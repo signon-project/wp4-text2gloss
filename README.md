@@ -92,7 +92,7 @@ following keys:
 The fulle pipeline allows you to input a sentence and get back a sequence of glosses. Under the hood, this will
 make use of text2amr neural models, then the English PropBank concepts will be extracted from that AMR,
 and finally the processed JSON-version of the VGT dictionary (cf. 
-[step 1.1](#11-add-multilingual-wordnet-synset-translations-and-disambiguate)) will be used to find glosses that
+[step 1.1](#21-add-multilingual-wordnet-synset-translations-and-disambiguate)) will be used to find glosses that
 correspond with the extracted English concepts. If multiple gloss options are available, we use LABSE to calculate
 the similarity. The gloss that is closest to the English query word is then selected as the final gloss.
 
