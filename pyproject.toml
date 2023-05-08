@@ -76,7 +76,7 @@ lines_after_imports = 2
 
 [project.scripts]
 reformat-dictionary = "text2gloss.process_dictionary.reformat:main"
-translate-openai = "text2gloss.process_dictionary.vgt_openai_translations:main"
-download-vgt-videos = "text2gloss.process_dictionary.download_vgt_videos:main"
-translate-wn = "text2gloss.process_dictionary.vgt_preprocessing:main"
+translate-openai = "text2gloss.process_dictionary.translate_openai:main"
+download-vgt-videos = "text2gloss.process_dictionary.download_videos:main"
+translate-wn = "text2gloss.process_dictionary.preprocess:main"
 text2gloss = "text2gloss.pipeline:main"
