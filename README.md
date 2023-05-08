@@ -38,20 +38,21 @@ Dutch "translations" and the videos.
 
 #### 2.0. (Optional -- paid) Add OpenAI GPT-x translations
 
-An optional first step is to add English translations for each gloss. This is done by translating the "possible Dutch
-translations" column. Using the OpenAI API allows us to be descriptive in our prompt. Rather than just translating the
-individual Dutch words, we can prompt the model by indicating that the given list of Dutch words are synonyms and that
-English translations of this whole "synset" should be given, rather than individual, lexical translations.
+An optional first step is to add English translations for each gloss. Using the OpenAI API allows us to be descriptive
+in our prompt. Rather than just translating the individual words of the explanation column (e.g. 'nl'), we can prompt
+the model by indicating that the given list of words are synonyms and that English translations of this whole "synset"
+should be given, rather than individual, lexical translations.
 
 Translations will be written to the "en" column.
 
 Note that to use this script, you need to have your [OpenAI API key](https://platform.openai.com/account/api-keys) as
-an enviroment variable `OPENAI_API_KEY`. Also note that using the OpenAI API is not free!
+an enviroment variable `OPENAI_API_KEY` or pass it as `--api_key`. Also note that using the OpenAI API is not free!
 
-Required inputs are the initial dictionary TSV, and the output path to write the resulting data to.
+Required inputs are the initial dictionary TSV (after running the reformat step) and a description of the language
+that is used in the descriptions, which will be used in the prompt.
 
 ```shell
-translate-openai data/vgt-woordenboek-27_03_2023.tsv data/vgt-woordenboek-27_03_2023+openai.tsv
+translate-openai data/ngt-dictionary-reformat.tsv 'Dutch, the variant of Dutch spoken in the Netherlands'
 ```
 
 #### 2.1. Add multilingual WordNet synset "translations" and disambiguate
