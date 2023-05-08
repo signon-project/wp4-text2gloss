@@ -16,7 +16,7 @@ def main():
     cparser = argparse.ArgumentParser(
         description="Convert a given sentence into glosses. The pipeline consists of gathering the AMR representation,"
         " extracting concepts from AMR, and then looking up those English concepts in the dictionary for"
-        " a corresponding gloss. Some disambiguation may be done through FastText embeddings if one concept"
+        " a corresponding gloss. Some disambiguation may be done through LABSE embeddings if one concept"
         " has multiple gloss candidates.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
