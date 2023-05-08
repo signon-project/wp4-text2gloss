@@ -8,15 +8,15 @@ from pandas import DataFrame
 from pandas._libs import lib
 
 
-def reformat_common(df: DataFrame, langcol: Literal["nl"]) -> DataFrame:
+def reformat_common(df: DataFrame, lang_col: Literal["nl"]) -> DataFrame:
     # Only keep gloss, lang, video columns
-    df = df.drop(columns=[c for c in df.columns if c not in ("gloss", langcol, "video")]).reset_index(drop=True)
+    df = df.drop(columns=[c for c in df.columns if c not in ("gloss", lang_col, "video")]).reset_index(drop=True)
     # Strip all columns
     df = df.astype(str).apply(lambda x: x.str.strip())
     # Drop rows without gloss or language 'translations'
-    df = df.dropna(subset=["gloss", langcol])
+    df = df.dropna(subset=["gloss", lang_col])
     # Fix potential encoding issues
-    df[["gloss", langcol]] = df[["gloss", langcol]].applymap(lambda x: fix_text(x))
+    df[["gloss", lang_col]] = df[["gloss", lang_col]].applymap(lambda x: fix_text(x))
     # Drop rows where 'gloss' column does not start with a number or capital letter
     df = df[df["gloss"].str.match(r"^[A-Z0-9]")]
     # Merge rows with the exact same gloss (so not regional variants). Meanings and videos are concatenated with ", "
