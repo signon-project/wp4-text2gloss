@@ -55,28 +55,23 @@ translate-openai data/ngt-dictionary-reformat.tsv 'Dutch, the variant of Dutch s
 [FastAPI inference server](#fastapi-inference-server))
 
 In addition to the optional previous step, we can also find broad translations through open multilingual WordNet. By
-looking up a Dutch word's synset, we can find the English words that correspond with the English synset that is aligned
-with the Dutch one. This gives us a set of potential, very broad, translations.
+looking up a word's synset, we can find the English words that correspond with the English synset that is aligned
+with the initial (e.g. Dutch) one. This gives us a set of potential, very broad, translations.
 
-Therefore, we use disambiguation to filter out English translations that are too "far" from the Dutch translations in
+Therefore, we use disambiguation to filter out English translations that are too "far" from the translations in
 terms of semantics. This script will disambiguate all the translation candidates in the "en" column. That includes the
 potential OpenAI translations as well as the WordNet translations. This is done by means of vector similarities through
 [LABSE](https://huggingface.co/sentence-transformers/LaBSE).
 
-Required inputs is the dictionary in TSV format. Output will be written to a TSV file and a JSON file that
-start with the same name/path but that end in `+wn_transls.*`.
+Required inputs is the reformatted dictionary in TSV format, a path to write the output database to, and the column
+that specifies the "explanation" of a gloss. Output will be written to an updated TSV file, and, importantly, a sqlite
+database. This database will later be used in the pipeline.
+
 
 ```shell
-translate-wn data/vgt-woordenboek-27_03_2023+openai.tsv
+preprocess-gloss data/vgt-woordenboek-27_03_2023-reformat-openai.tsv data/glosses.sqlite nl_vgt --port 5001
 ```
 
-The output of this is step is an updated TSV file (same directory as input), as well as a JSON file that contains the 
-following keys:
-
-- `gloss2en`: a dictionary (str->list) of gloss to potential English translations
-- `gloss2nl`: a dictionary (str->list) of gloss to potential Dutch translations
-- `en2gloss`: a dictionary (str->list) of English translation to glosses (most important)
-- `nl2gloss`: a dictionary (str->list) of Dutch translation to glosses
 
 
 ### 4. Full text2gloss pipeline

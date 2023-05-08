@@ -8,7 +8,9 @@ from pandas import DataFrame
 from pandas._libs import lib
 
 
-def reformat_common(df: DataFrame, lang_col: Literal["nl"]) -> DataFrame:
+def reformat_common(df: DataFrame, lang_col: Literal["nl_ngt", "nl_vgt"]) -> DataFrame:
+    # When adding a new language, make sure that lang_col is in the format {langcode}_{signlang}!
+
     # Only keep gloss, lang, video columns
     df = df.drop(columns=[c for c in df.columns if c not in ("gloss", lang_col, "video")]).reset_index(drop=True)
     # Strip all columns
@@ -25,13 +27,13 @@ def reformat_common(df: DataFrame, lang_col: Literal["nl"]) -> DataFrame:
 
 
 def reformat_vgt(df) -> DataFrame:
-    df = df.rename(columns={df.columns[1]: "gloss", df.columns[2]: "nl", "Video": "video"})
-    return reformat_common(df, "nl")
+    df = df.rename(columns={df.columns[1]: "gloss", df.columns[2]: "nl_vgt", "Video": "video"})
+    return reformat_common(df, "nl_vgt")
 
 
 def reformat_ngt(df) -> DataFrame:
-    df = df.rename(columns={df.columns[2]: "gloss", df.columns[6]: "nl"})
-    return reformat_common(df, "nl")
+    df = df.rename(columns={df.columns[2]: "gloss", df.columns[6]: "nl_ngt"})
+    return reformat_common(df, "nl_ngt")
 
 
 def reformat_dictionary(fin: Union[str, PathLike], sign_language: Literal["vgt", "ngt"]) -> DataFrame:

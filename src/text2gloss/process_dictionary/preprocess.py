@@ -1,7 +1,7 @@
-import json
 import logging
 import re
-from collections import defaultdict
+import sqlite3
+import sys
 from functools import lru_cache
 from pathlib import Path
 
@@ -14,55 +14,62 @@ from text2gloss.utils import send_request, standardize_gloss
 from tqdm import tqdm
 
 
-def add_en_translations(df: DataFrame):
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    datefmt="%m/%d/%Y %H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    level=logging.INFO,
+)
+
+
+def add_en_translations(df: DataFrame, lang_col: str):
     """Add "translations" to the dataframe in the "en" column. These translations are retrieved
-    by looking up the "possible Dutch translations" in the "nl" column in Open Multilingual Wordnet (Dutch)
+    by looking up the "possible translations" in the lang_col column in Open Multilingual Wordnet
     and finding their equivalent in the English WordNet. This means these English translations will be _very_ broad.
 
-    :param df: input Dataframe that must have an "nl" column
+    :param df: input Dataframe that must have a `lang_col` column (e.g. 'nl_vgt')
+    :param lang_col: key to the language column with 'explanations' (possible translations)
     :return: updated DataFrame that now also includes an "en" column
     """
-    nwn = wn.Wordnet("omw-nl:1.4")
+    lang_code = lang_col.split("_")[0]
+    nwn = wn.Wordnet(f"omw-{lang_code}:1.4")
 
     @lru_cache(maxsize=256)
-    def translate_word(nl_word: str):
-        nl_word = nl_word.strip()
+    def translate_word(src_word: str):
         en_translations = set()
 
-        if nl_word[0].isupper():
+        if src_word[0].isupper():
             # Probably a city, country or name
-            en_translations.add(nl_word)
+            en_translations.add(src_word)
         else:
-            nl_wn_words = nwn.words(nl_word)
+            wn_words = nwn.words(src_word)
 
-            if nl_wn_words:
-                for nl_wn_word in nl_wn_words:
-                    for _, en_wn_words in nl_wn_word.translate("omw-en:1.4").items():
+            if wn_words:
+                for wn_word in wn_words:
+                    for _, en_wn_words in wn_word.translate("omw-en:1.4").items():
                         en_translations.update([en_w.lemma() for en_w in en_wn_words])
 
         return en_translations
 
     def translate(row: Series):
-        nl = row["nl"]
-        # One gloss has multiple Dutch "translations"
+        src_words_str = row[lang_col]
+        # One gloss has multiple "possible translations" (explanation words)
         # For each word, we find all of its possible translations through open multilingual Wordnet
-        if not nl:
+        if not src_words_str:
             return ""
 
-        nl = remove_brackets(nl)
-        nl_words = nl.split(", ")
+        src_words_str = remove_brackets(src_words_str)
+        src_words = src_words_str.split(", ")
 
-        if "en" in row:
-            en_translations = set(row["en"].split(", "))
-        else:
-            en_translations = set()
+        en_translations = set(row["en"].split(", ")) if "en" in row else set()
 
-        for nl_word in nl_words:
-            en_translations.update(translate_word(nl_word))
+        for src_word in src_words:
+            if src_word := src_word.strip():
+                en_translations.update(translate_word(src_word))
 
         return ", ".join(sorted(en_translations))
 
-    tqdm.pandas(desc="Translating NL 'translations' to EN with WordNet")
+    tqdm.pandas(desc=f"Translating {lang_col.upper()} 'translations' to EN with WordNet")
     df["en"] = df.progress_apply(translate, axis=1)
 
     return df
@@ -80,180 +87,159 @@ def remove_brackets(word: str):
     return word
 
 
-def filter_en_translations(df: DataFrame, threshold: float = 0.1, port: int = 5000):
-    """Uses LABSE embeddings and calculates the centroid of the words in the verified "possible translations" (Dutch) column,
-    and for each suggested WordNet translation (English) we calculate the cosine similarity to this centroid, so output value
-    is between -1 and +1, NOT between 0 and 1!
+def filter_en_translations(df: DataFrame, lang_col: str, threshold: float = 0.5, port: int = 5000):
+    """Uses LABSE embeddings and calculates the centroid of the words in the verified "possible translations"
+    column,and for each suggested WordNet translation (English) we calculate the cosine similarity to this centroid,
+    so output value is between -1 and +1, NOT between 0 and 1!
 
-    :param df: dataframe with "en" (WordNet translations) and "nl" columns ("verified" translations)
+    :param df: dataframe with "en" (WordNet translations) and a `lang_col` column (e.g. 'nl_vgt')
+    :param lang_col: key to the language column with 'explanations' (possible translations)
     :param threshold: minimal value. If cosine similarity is below this, the word will not be included
     :param port: local port that the inference server is running on
     :return: the updated DataFrame where potentially items have been removed from the "en" column
     """
     session = requests.Session()
     session.headers.update({"Content-Type": "application/json"})
-    sims = defaultdict(list)  # E.g. {"potato": [("PATAT", 0.1), ("AARDAPPEL", 0.16)]}
-    gloss_variants = defaultdict(list)  # E.g. {"AANRAKEN": ["AANRAKEN-A", "AANRAKEN-B"]}
 
-    def find_similarities(row: Series) -> None:
+    def find_similarities(row: Series):
         """On the one hand, discard English translations that do not meet the threshold similarity. On the other,
         collect similarities and gloss variants.
         - for each gloss, collect its standardized versions in `gloss_variants`
         - for each English word that meets the thershold, keep track of its similarity score and the std gloss
         for which this similarity was achieved
         """
-        if not row["nl"] or not row["en"]:
-            return
-
-        std_gloss = standardize_gloss(row["gloss"])
-        gloss_variants[std_gloss].append(row["gloss"])
+        if not row[lang_col] or not row["en"]:
+            return None
 
         # Do this for the list, of, words because sometimes
         # there is a comma in the parentheses, which leads to unexpected results such as
         # `bewerkingsteken (+, -...)` -> -...)
-        nl_words = remove_brackets(row["nl"])
-        nl_words = tuple([w.strip() for w in nl_words.split(", ")])
-        en_words = [w.strip() for w in row["en"].split(", ")]
+        src_words = remove_brackets(row[lang_col])
+        src_words = tuple([w.strip() for w in src_words.split(", ")])
+        src_centroid = send_request("centroid", session=session, port=port, params={"tokens": src_words})
 
-        # For names/cities that start with a capital letter and that have an equivalent translation in English
-        if len(nl_words) == 1:
-            if nl_words[0][0].isupper():
-                found = False
-                for en in en_words:
-                    if en[0].isupper():
-                        sims[en].append((std_gloss, 1.0))
-                        found = True
-                        continue
-                # No need to look for other translations
-                if found:
-                    return
+        if src_centroid is None:
+            return None
 
-        nl_centroid = send_request("centroid", session=session, port=port, params={"tokens": nl_words})
-
-        if nl_centroid is None:
-            return
-
+        en_words = [w.strip() for w in remove_brackets(row["en"]).split(", ")]
         en_words = [re.sub(r"^to\s+", "", en) for en in en_words]  # Remove "to" in infinitives
         en_vecs = send_request("vectors", session=session, port=port, params={"tokens": en_words})
+        valid = []
         for en_vec, en_word in zip(en_vecs, en_words):
-            sim = util.cos_sim(en_vec, nl_centroid).squeeze(dim=0).item()
+            sim = util.cos_sim(en_vec, src_centroid).squeeze(dim=0).item()
             if sim >= threshold:
-                sims[en_word].append((std_gloss, sim))
+                valid.append(en_word)
             else:
-                logging.info(
-                    f"Dropping {en_word}. Too distant from {nl_words}! (sim={sim:.2f}; threshold={threshold})"
+                logging.debug(
+                    f"Dropping {en_word}. Too distant from {src_words}! (sim=~{sim:.2f}; threshold={threshold})"
                 )
 
+        if valid:
+            row["en"] = ", ".join(sorted(valid))
+            return row
+        else:
+            return None
+
     tqdm.pandas(desc="Collecting semantic similarities")
-    df.progress_apply(find_similarities, axis=1)
+    df = df.progress_apply(find_similarities, axis=1)
     session.close()
 
-    df["en"] = ""  # Empty 'en' column so that we can fill it from scratch
-
-    # For every English translation that already reaches the minimal similarity threshold, find for which standardized
-    # gloss (e.g. AANRAKEN) it scored best and then only use the English translation for those glosses
-    # (e.g. AANRAKEN-A, AANRAKEN-B)
-    for en_word, similarities in tqdm(sims.items(), desc="Disambiguating"):
-        sorted_sims = sorted(similarities, key=lambda tup: tup[1], reverse=True)
-        best_sim_std_glos = sorted_sims[0][0]  # row_id with highest similarity
-        # Add this en_word to the potentially existing cell for this ID
-        for gloss in gloss_variants[best_sim_std_glos]:
-            existing_cell = df.loc[df["gloss"] == gloss, "en"].item().split(", ")
-            # Filter empty values
-            existing_cell = [item_strip for item in existing_cell if (item_strip := item.strip())]
-            df.loc[df["gloss"] == gloss, "en"] = ", ".join(sorted(existing_cell + [en_word]))
-
+    df = df.dropna()
     return df
 
 
-def process_vgt_dictionary(fin: str, threshold: float = 0.1, port: int = 5000) -> Path:
-    """Generate WordNet translations for the words in the "possible translation" column in the VGT dictionary.
+def build_en2gloss_database(df: DataFrame, db_path: str, lang_col: str):
+    con = sqlite3.connect(db_path)
+
+    # Convert format to en->gloss
+    en2gloss = []
+    for item in df.to_dict(orient="records"):
+        gloss = standardize_gloss(item["gloss"])
+        en_words = sorted([en_strip for en in item["en"].split(", ") if (en_strip := en.strip())])
+
+        for word in en_words:
+            en2gloss.append({"en": word, "gloss": gloss})
+
+    en2gloss_df = pd.DataFrame(en2gloss)
+    en2gloss_df = en2gloss_df.drop_duplicates().reset_index(drop=True)
+    sl_type = lang_col.split("_")[1] if "_" in lang_col else lang_col
+    gloss_tbl = f"{sl_type}_en2gloss_tbl"
+    en2gloss_df.to_sql(gloss_tbl, con=con, if_exists="replace")
+    db_cur = con.cursor()
+    db_cur.execute(f"CREATE INDEX idx_{sl_type}_en ON {gloss_tbl} (en);")
+
+    con.close()
+
+
+def process_dictionary(fin: str, dbout: str, lang_col: str, threshold: float = 0.5, port: int = 5000):
+    """Generate WordNet translations for the words in the "possible translation" column in the dictionary.
     Then, filter those possible translations by comparing them with the centroid LABSE vector. English translations
     that have a cosine similarity (between -1 and +1) of less than the threshold will not be included in the final
     DataFrame.
 
-    "Dictionary" mappings will be created for en<>gloss and nl<>gloss and saved in a JSON file at the same location
-    as the input file.
+    "Dictionary" mappings will be created in an SQLite table named after the lang_col, "lang_col_en2gloss_tbl"
+    (e.g. "nl_vgt_en2gloss_tbl")
 
-    Returns the path to the written JSON file
-
-    :param fin: path to the VGT dictionary in TSV format
+    :param fin: path to a formatted dictionary in TSV format
+    :param dbout: path where to store the updated TSV as an SQLite database. The new data will be stored under a table
+     called 'lang_col_en2gloss_tbl' where lang_col is replaced by the 'lang_col' argument given
+    :param lang_col: key to the language column with 'explanations' (possible translations)
     :param threshold: similarity threshold. Lower similarity English words will not be included.
+    :param port: port where the inference server is running
     """
     pfin = Path(fin).resolve()
 
-    df = pd.read_csv(fin, sep="\t")
+    df = pd.read_csv(fin, sep="\t", encoding="utf-8")
     had_en_column = "en" in df.columns
-    df = df.rename(columns={df.columns[1]: "gloss", df.columns[2]: "nl"})
-    df["nl"] = df["nl"].apply(
-        lambda nl: ", ".join(map(str.strip, re.split(r"\s*,\s*", nl)))
+    df[lang_col] = df[lang_col].apply(
+        lambda explanation: ", ".join(map(str.strip, re.split(r"\s*,\s*", explanation)))
     )  # clean possible white-space issues
-    df = add_en_translations(df)
+    df = add_en_translations(df, lang_col=lang_col)
 
     # Filter/disambiguate translations
-    df = filter_en_translations(df, threshold=threshold, port=port)
+    df = filter_en_translations(df, lang_col=lang_col, threshold=threshold, port=port)
 
     if not had_en_column:
+        # Reorder columns
         cols = list(df.columns)
-        reordered_cols = cols[:3] + [cols[-1]] + cols[3:-1]
-        df = df[reordered_cols]
+        extra_cols = [c for c in cols[2:] if c != "en"]
+        df = df[cols[:2] + ["en"] + extra_cols]
 
-    pfout_tsv = pfin.with_name(f"{pfin.stem}+wn_transls{pfin.suffix}")
-    df.to_csv(pfout_tsv, index=False, sep="\t")
+    pfout_tsv = pfin.with_name(f"{pfin.stem}-prepr{pfin.suffix}")
+    df.to_csv(pfout_tsv, index=False, sep="\t", encoding="utf-8")
     logging.info(f"Saved updated TSV in {pfout_tsv.resolve()}")
 
-    gloss2en = defaultdict(set)
-    gloss2nl = defaultdict(set)
-    en2gloss = defaultdict(set)
-    nl2gloss = defaultdict(set)
-
-    logging.info("Building final JSON")
-    for item in df.to_dict(orient="records"):
-        gloss = standardize_gloss(item["gloss"])
-        en_words = sorted([en_strip for en in item["en"].split(", ") if (en_strip := en.strip())])
-        nl_words = sorted([nl_strip for nl in item["nl"].split(", ") if (nl_strip := nl.strip())])
-
-        gloss2en[gloss].update(en_words)
-        gloss2nl[gloss].update(nl_words)
-
-        for word in en_words:
-            en2gloss[word].add(gloss)
-
-        for word in nl_words:
-            nl2gloss[word].add(gloss)
-
-    all_dicts = {
-        "gloss2en": {k: sorted(gloss2en[k]) for k in sorted(gloss2en)},
-        "gloss2nl": {k: sorted(gloss2nl[k]) for k in sorted(gloss2nl)},
-        "en2gloss": {k: sorted(en2gloss[k]) for k in sorted(en2gloss)},
-        "nl2gloss": {k: sorted(nl2gloss[k]) for k in sorted(nl2gloss)},
-    }
-
-    pfout = pfin.with_name(f"{pfin.stem}+wn_transls.json")
-
-    with pfout.open("w", encoding="utf-8") as fhout:
-        json.dump(all_dicts, fhout, indent=4)
-
-    logging.info(f"Saved updated JSON in {pfout.resolve()}")
-    return pfout
+    logging.info("Building SQLite DataBase")
+    build_en2gloss_database(df=df, db_path=dbout, lang_col=lang_col)
 
 
 def main():
     import argparse
 
     cparser = argparse.ArgumentParser(
-        description="'Translates' the VGT dictionary via multilingual WordNet by finding Dutch synsets in Open"
+        description="'Translates' a dictionary via multilingual WordNet by finding synsets in Open"
         " Multilingual WordNet, their corresponding English synset, and all the words belonging to that"
-        " synset. This ccan yield translations that are out-of-context. Therefore we also disambiguate by"
-        " means of LABSE vectors. By comparing the vector of every English candidate"
-        " translation with the centroid of the Dutch words' vectors, we can filter out words whose"
-        " similarity to the Dutch words is too low.\nThe script will produce a modified TSV file with an"
-        " 'en' column, as well as a JSON file with gloss-to-english translations (gloss2en), "
-        "gloss-to-dutch translations (gloss2nl), and the respective inverse (en2gloss and nl2gloss).",
+        " synset. This can yield translations that are out-of-context. By comparing the vector of every English"
+        " candidate translation with the centroid of the explanation words' vectors, we can filter out"
+        " words whose similarity is too low.\nThe script will produce a modified TSV file with an"
+        " 'en' column and an SQLite database. If the database already exists for another language, the new data"
+        "will be simply added as a separate table. The tables are named 'lang_col_en2gloss_tbl' where lang_col"
+        " is replaced by the respective input argument.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    cparser.add_argument("fin", help="VGT dictionary in TSV format")
+    cparser.add_argument("fin", help="dictionary in TSV format (after reformat and optional OpenAI translation)")
+    cparser.add_argument(
+        "dbout",
+        help="path where to store the updated TSV as an SQLite database. The new data will be stored under a"
+             " table called 'lang_col_en2gloss_tbl' where lang_col is replaced by the 'lang_col' argument given"
+    )
+
+    cparser.add_argument(
+        "lang_col",
+        help="name of the column that contains the 'explanations' of a gloss after reformatting, typically"
+             " a language code followed by the sign language like 'nl_vgt'"
+    )
     cparser.add_argument(
         "-t",
         "--threshold",
@@ -267,8 +253,7 @@ def main():
         default=5000,
         help="Local port that the inference server is running on.",
     )
-
-    process_vgt_dictionary(**vars(cparser.parse_args()))
+    process_dictionary(**vars(cparser.parse_args()))
 
 
 if __name__ == "__main__":
