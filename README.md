@@ -1,4 +1,4 @@
-# Text-to-gloss for VGT
+# Text-to-gloss through semantic abstraction
 
 ## Installation
 
@@ -8,7 +8,7 @@ Simply pip install this repository. This will automatically download dependencie
 python -m pip install .
 ```
 
-For developers: you can automatically install some goodies like black, isort, mypy with the `dev` extra.
+For developers: you can automatically install some goodies like black, isort, flake8 with the `dev` extra.
 
 ```shell
 python -m pip install .[dev]
@@ -17,21 +17,26 @@ python -m pip install .[dev]
 
 ## How to use
 
-### 0. Download VGT videos
+### 1. Reformat dictionary
 
-Download the corresponding videos from the URLs in the VGT dictionary.
+Because dictionaries of different languages have a different format, we streamline their structure for the following
+steps. We are only interested in the gloss, the meaning in the related language (e.g. 'nl' for NGT and VGT), and
+optionally the video URLs.
+
+Run the following script. Specify the dictionary input file, and use the `-l` flag to indicate which sign language the
+dictionary describes. Note that the input format can also be a TSV file for VGT.
 
 ```shell
-download-vgt-videos data/vgt-woordenboek-27_03_2023.tsv data/videos error.log -j 8
+reformat-dictionary .\data\ngt-dictionary.csv -l ngt
 ```
 
-
-### 1. Pre-process the VGT dictionary
+### 2. Pre-process the VGT dictionary
 
 The VGT dictionary contains glosses with a lot of information per gloss. For this repository especially the possible
 Dutch "translations" and the videos.
 
-#### 1.0. (Optional -- paid) Add OpenAI GPT-x translations
+
+#### 2.0. (Optional -- paid) Add OpenAI GPT-x translations
 
 An optional first step is to add English translations for each gloss. This is done by translating the "possible Dutch
 translations" column. Using the OpenAI API allows us to be descriptive in our prompt. Rather than just translating the
@@ -49,7 +54,7 @@ Required inputs are the initial dictionary TSV, and the output path to write the
 translate-openai data/vgt-woordenboek-27_03_2023.tsv data/vgt-woordenboek-27_03_2023+openai.tsv
 ```
 
-#### 1.1. Add multilingual WordNet synset "translations" and disambiguate
+#### 2.1. Add multilingual WordNet synset "translations" and disambiguate
 
 **Before running this script** make sure that the inference server is running (see 
 [FastAPI inference server](#fastapi-inference-server))
@@ -79,7 +84,7 @@ following keys:
 - `nl2gloss`: a dictionary (str->list) of Dutch translation to glosses
 
 
-### 2. Full text2gloss pipeline
+### 3. Full text2gloss pipeline
 
 **Before running this script** make sure that the inference server is running (see 
 [FastAPI inference server](#fastapi-inference-server))
@@ -98,12 +103,6 @@ that was generated in the previous step.
 text2gloss "I want to eat my grandma's cookies"
 ```
 
-or multiple texts at the same time, separated by triple pipes `|||`:
-
-
-```shell
-text2gloss "I want to eat my grandma's cookies ||| Have we met before?"
-```
 
 
 ## FastAPI inference server
@@ -141,6 +140,14 @@ mbart_num_beams: int = 3
 ```
 
 This server needs to be started before running the `text2gloss` and `translate-wn` scripts.
+
+### Downloading VGT videos
+
+Download the corresponding videos from the URLs in the VGT dictionary.
+
+```shell
+download-vgt-videos data/vgt-woordenboek-27_03_2023.tsv data/videos error.log -j 8
+```
 
 ## LICENSE
 
