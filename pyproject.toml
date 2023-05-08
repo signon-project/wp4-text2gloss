@@ -22,7 +22,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
     "Topic :: Text Processing",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -30,10 +29,11 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
 ]
 
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
         "accelerate",
         "fastapi",
+        "ftfy",
         "mbart_amr @ git+https://github.com/BramVanroy/multilingual-text-to-amr.git",
         "networkx",
         "openai",
@@ -62,7 +62,7 @@ dev = ["flake8", "black", "isort"]
 # TOOLS
 [tool.black]
 line-length = 119
-target-version = ["py38", "py39", "py310", "py311"]
+target-version = ["py39", "py310", "py311"]
 
 [tool.isort]
 ensure_newline_before_comments = true
@@ -75,6 +75,7 @@ lines_after_imports = 2
 # https://github.com/PyCQA/flake8/issues/234
 
 [project.scripts]
+reformat-dictionary = "text2gloss.process_dictionary.reformat:main"
 translate-openai = "text2gloss.process_dictionary.vgt_openai_translations:main"
 download-vgt-videos = "text2gloss.process_dictionary.download_vgt_videos:main"
 translate-wn = "text2gloss.process_dictionary.vgt_preprocessing:main"
