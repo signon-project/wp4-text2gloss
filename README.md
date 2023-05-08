@@ -24,19 +24,13 @@ steps. We are only interested in the gloss, the meaning in the related language 
 optionally the video URLs.
 
 Run the following script. Specify the dictionary input file, and use the `-l` flag to indicate which sign language the
-dictionary describes. Note that the input format can also be a TSV file for VGT.
+dictionary describes. Note that the input format can also be a TSV file (e.g. for VGT).
 
 ```shell
 reformat-dictionary .\data\ngt-dictionary.csv -l ngt
 ```
 
-### 2. Pre-process the VGT dictionary
-
-The VGT dictionary contains glosses with a lot of information per gloss. For this repository especially the possible
-Dutch "translations" and the videos.
-
-
-#### 2.0. (Optional -- paid) Add OpenAI GPT-x translations
+#### 2. (Optional -- paid) Add OpenAI GPT-x translations
 
 An optional first step is to add English translations for each gloss. Using the OpenAI API allows us to be descriptive
 in our prompt. Rather than just translating the individual words of the explanation column (e.g. 'nl'), we can prompt
@@ -55,7 +49,7 @@ that is used in the descriptions, which will be used in the prompt.
 translate-openai data/ngt-dictionary-reformat.tsv 'Dutch, the variant of Dutch spoken in the Netherlands'
 ```
 
-#### 2.1. Add multilingual WordNet synset "translations" and disambiguate
+#### 3. Add multilingual WordNet synset "translations" and disambiguate
 
 **Before running this script** make sure that the inference server is running (see 
 [FastAPI inference server](#fastapi-inference-server))
@@ -85,15 +79,15 @@ following keys:
 - `nl2gloss`: a dictionary (str->list) of Dutch translation to glosses
 
 
-### 3. Full text2gloss pipeline
+### 4. Full text2gloss pipeline
 
 **Before running this script** make sure that the inference server is running (see 
 [FastAPI inference server](#fastapi-inference-server))
 
 The fulle pipeline allows you to input a sentence and get back a sequence of glosses. Under the hood, this will
 make use of text2amr neural models, then the English PropBank concepts will be extracted from that AMR,
-and finally the processed JSON-version of the VGT dictionary (cf. 
-[step 1.1](#21-add-multilingual-wordnet-synset-translations-and-disambiguate)) will be used to find glosses that
+and finally the processed JSON-version of the dictionary (cf. 
+[step 1.1](#3-add-multilingual-wordnet-synset-translations-and-disambiguate)) will be used to find glosses that
 correspond with the extracted English concepts. If multiple gloss options are available, we use LABSE to calculate
 the similarity. The gloss that is closest to the English query word is then selected as the final gloss.
 

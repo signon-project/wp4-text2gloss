@@ -20,6 +20,7 @@ from pandas import DataFrame
 from requests.exceptions import Timeout as ReqTimeout
 from tqdm import tqdm
 
+
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     datefmt="%m/%d/%Y %H:%M:%S",
@@ -67,8 +68,10 @@ def get_response(messages: List[Dict[str, str]], mgr_flags: DictProxy, model: st
     mgr_flags["total_failures"] += 1
 
     if last_error:
-        logging.error(f"Error occurred on {time.ctime()}! (this is failure #{mgr_flags['total_failures']})..."
-                      f" Error:\n{last_error}")
+        logging.error(
+            f"Error occurred on {time.ctime()}! (this is failure #{mgr_flags['total_failures']})..."
+            f" Error:\n{last_error}"
+        )
 
     return None
 
@@ -188,7 +191,9 @@ def translate_with_openai(
                 if item_gloss in skip_glosses:
                     # Replace cell value with existing translations that were already found
                     if df_out is not None:
-                        df.loc[df["gloss"] == item_gloss, "en"] = df_out.loc[df_out["gloss"] == item_gloss, "en"].copy()
+                        df.loc[df["gloss"] == item_gloss, "en"] = df_out.loc[
+                            df_out["gloss"] == item_gloss, "en"
+                        ].copy()
                     continue
 
                 futures[
@@ -270,7 +275,7 @@ def main():
     cparser.add_argument(
         "--api_key",
         help="OpenAI API key. By default the environment variable 'OPENAI_API_KEY' will be used, but you can override"
-             " that with this option."
+        " that with this option.",
     )
     cparser.add_argument("-i", "--first_n", default=None, type=int, help="For debugging: only translate first n items")
     translate_with_openai(**vars(cparser.parse_args()))
