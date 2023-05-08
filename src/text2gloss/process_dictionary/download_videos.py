@@ -41,7 +41,7 @@ def download_file(url: str, dout: str, fherror: typing.IO, force_overwrite: bool
     return local_filename
 
 
-def download_vgt_videos(fin: str, dout: str, ferror: str, force_overwrite: bool = False, num_workers: int = 4):
+def download_videos(fin: str, dout: str, ferror: str, force_overwrite: bool = False, num_workers: int = 4):
     df = pd.read_csv(fin, sep="\t")
     Path(ferror).parent.mkdir(exist_ok=True, parents=True)
     Path(dout).mkdir(exist_ok=True, parents=True)
@@ -49,7 +49,7 @@ def download_vgt_videos(fin: str, dout: str, ferror: str, force_overwrite: bool 
     with open(ferror, "w", encoding="utf-8") as fherror:
         with ThreadPoolExecutor(max_workers=num_workers) as executor:
             future_to_url = {
-                executor.submit(download_file, url, dout, fherror, force_overwrite): url for url in df["Video"]
+                executor.submit(download_file, url, dout, fherror, force_overwrite): url for url in df["video"]
             }
 
             for future in tqdm(as_completed(future_to_url), total=len(df.index)):
@@ -61,11 +61,11 @@ def main():
     import argparse
 
     cparser = argparse.ArgumentParser(
-        description="Download all the videos from the URLs in the VGT dictionary",
+        description="Download all the videos from the URLs in the dictionary",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    cparser.add_argument("fin", help="VGT dictionary in TSV format. Must have a column called 'Video'")
+    cparser.add_argument("fin", help="Dictionary in TSV format. Must have a column called 'video'")
     cparser.add_argument("dout", help="Output directory to write the videos to")
     cparser.add_argument("ferror", help="Output file to log errors to")
     cparser.add_argument("-f", "--force_overwrite", action="store_true", help="Whether to overwrite files")
@@ -73,7 +73,7 @@ def main():
         "-j", "--num_workers", type=int, default=4, help="How many workers to use to download in parallel"
     )
 
-    download_vgt_videos(**vars(cparser.parse_args()))
+    download_videos(**vars(cparser.parse_args()))
 
 
 if __name__ == "__main__":

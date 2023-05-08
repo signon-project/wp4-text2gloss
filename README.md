@@ -138,10 +138,12 @@ This server needs to be started before running the `text2gloss` and `translate-w
 
 ### Downloading VGT videos
 
-Download the corresponding videos from the URLs in the VGT dictionary.
+Download the corresponding videos from the URLs in a dictionary. Use this on a reformatted dictionary (a 'video'
+column must be present). The required input is the reformatted dictionary, the location to save the videos, and a 
+path to an error log file.
 
 ```shell
-download-vgt-videos data/vgt-woordenboek-27_03_2023.tsv data/videos error.log -j 8
+download-videos data/vgt-woordenboek-27_03_2023-reformat.tsv data/videos error.log
 ```
 
 ## LICENSE
