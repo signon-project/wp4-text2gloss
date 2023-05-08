@@ -4,7 +4,7 @@ import re
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Literal, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 
 import numpy as np
 import penman
@@ -28,7 +28,6 @@ logging.basicConfig(
 )
 
 logging.getLogger("penman").setLevel(logging.WARNING)
-
 
 app = FastAPI()
 app.add_middleware(
@@ -160,26 +159,24 @@ def find_closest(
 
 @app.get("/text2gloss/")
 def run_pipeline(
-    texts: Annotated[
-        List[str],
+    text: Annotated[
+        str,
         Query(
-            title="Texts to convert to a penman representation",
+            title="Text to convert to a penman representation",
         ),
-    ]
-) -> List[List[str]]:
-    linearizeds = translate(texts, settings.mbart_input_lang, amr_model, amr_tokenizer, **amr_gen_kwargs)
-    penman_strs = [linearized2penmanstr(lin) for lin in linearizeds]
-    batch_concepts = [extract_concepts(penman_str) for penman_str in penman_strs]
+    ],
+    output_sl: Annotated[Literal["VGT"], Query(title="Which language to use to output")] = "VGT",
+) -> Dict[str, Any]:
+    linearizeds = translate([text], settings.mbart_input_lang, amr_model, amr_tokenizer, **amr_gen_kwargs)
+    penman_str = linearized2penmanstr(linearizeds[0])
+    concepts = extract_concepts(penman_str)
+    glosses = concepts2glosses(concepts, src_sentence=text)
 
-    glosses = []
-    for concepts, text in zip(batch_concepts, texts):
-        glosses.append(concepts2glosses(concepts, src_sentence=text))
-
-    return glosses
+    return {"glosses": glosses, "meta": {}}
 
 
 def extract_concepts_from_invalid_penman(penman_str):
-    # TODO: probably a regex/string-based extraction
+    # TODO: probably a regex/string-based extraction?
     return []
 
 
