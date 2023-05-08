@@ -1,15 +1,16 @@
 import json
 import logging
 import re
+import sqlite3
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Tuple
+from typing import Any, Dict, List, Literal, Tuple, Union
 
 import numpy as np
 import penman
 import torch.cuda
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from mbart_amr.data.linearization import linearized2penmanstr
 from pydantic import BaseSettings
@@ -40,10 +41,14 @@ app.add_middleware(
 
 
 class Settings(BaseSettings):
-    json_vgt_dictionary: str = r"vgt-woordenboek-27_03_2023+openai+wn_transls.json"
+    no_db: bool = False
+    sqlite_path: str = "glosses.sqlite"
+
+    no_sbert: bool = False
     sbert_model_name: str = "sentence-transformers/LaBSE"
     sbert_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
 
+    no_amr: bool = False
     mbart_input_lang: Literal["English", "Dutch"] = "English"
     mbart_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
     mbart_quantize: bool = True
@@ -53,19 +58,30 @@ class Settings(BaseSettings):
 settings = Settings()
 app = FastAPI()
 
-stransformer = SentenceTransformer(settings.sbert_model_name, device=settings.sbert_device)
-amr_model, amr_tokenizer, amr_logitsprocessor = get_resources(
-    multilingual=settings.mbart_input_lang != "English",
-    quantize=settings.mbart_quantize,
-    no_cuda=settings.mbart_device == "cpu",
-)
-amr_gen_kwargs = {
-    "max_length": amr_model.config.max_length,
-    "num_beams": settings.mbart_num_beams if settings.mbart_num_beams else amr_model.config.num_beams,
-    "logits_processor": LogitsProcessorList([amr_logitsprocessor]),
-}
+stransformer = None
+if not settings.no_sbert:
+    stransformer = SentenceTransformer(settings.sbert_model_name, device=settings.sbert_device)
+    print(f"Using {stransformer._target_device} for Sentence Transformers")
 
-en2glosses = json.loads(Path(settings.json_vgt_dictionary).read_text(encoding="utf-8"))["en2gloss"]
+amr_model = None
+if not settings.no_amr:
+    amr_model, amr_tokenizer, amr_logitsprocessor = get_resources(
+        multilingual=settings.mbart_input_lang != "English",
+        quantize=settings.mbart_quantize,
+        no_cuda=settings.mbart_device == "cpu",
+    )
+    print(f"Using {amr_model.device} for AMR")
+
+    amr_gen_kwargs = {
+        "max_length": amr_model.config.max_length,
+        "num_beams": settings.mbart_num_beams if settings.mbart_num_beams else amr_model.config.num_beams,
+        "logits_processor": LogitsProcessorList([amr_logitsprocessor]),
+    }
+
+dbcur = None
+if not settings.no_db:
+    dbcon = sqlite3.connect(settings.sqlite_path)
+    dbcur = dbcon.cursor()
 
 
 @app.get("/centroid/")
@@ -84,7 +100,9 @@ def build_tokens_centroid(
 
 @lru_cache(128)
 def encode_texts(tokens: Tuple[str, ...]):
-    return stransformer.encode(tokens)
+    if not stransformer:
+        raise HTTPException(status_code=404, detail="The Sentence Transformer model was not loaded.")
+    return stransformer.encode(tokens, device=settings.sbert_device, show_progress_bar=False)
 
 
 @app.get("/vectors/")
@@ -165,14 +183,31 @@ def run_pipeline(
             title="Text to convert to a penman representation",
         ),
     ],
-    output_sl: Annotated[Literal["VGT"], Query(title="Which language to use to output")] = "VGT",
+    sign_lang: Annotated[Literal["vgt", "ngt"], Query(title="Which language to generate")] = "vgt"
 ) -> Dict[str, Any]:
+    if not amr_model:
+        raise HTTPException(status_code=404, detail="The AMR model was not loaded.")
+
     linearizeds = translate([text], settings.mbart_input_lang, amr_model, amr_tokenizer, **amr_gen_kwargs)
     penman_str = linearized2penmanstr(linearizeds[0])
     concepts = extract_concepts(penman_str)
-    glosses = concepts2glosses(concepts, src_sentence=text)
+    glosses = concepts2glosses(concepts, src_sentence=text, sign_lang=sign_lang)
 
     return {"glosses": glosses, "meta": {}}
+
+
+@lru_cache(128)
+def get_gloss_candidates(en_token: str, sign_lang: str):
+    if not dbcur:
+        raise HTTPException(status_code=404, detail="The SQLite Database was not loaded.")
+
+    query = dbcur.execute(f'SELECT gloss FROM {sign_lang}_en2gloss_tbl WHERE en == "{en_token}"')
+    results = query.fetchall()
+    print(type(results), results)
+    # TODO: getting an error for databases in different threads
+    # Rework code:
+    # - load necessary things on startup: https://fastapi.tiangolo.com/advanced/events/
+    # - add async database support: https://stackoverflow.com/a/65270864/1150683
 
 
 def extract_concepts_from_invalid_penman(penman_str):
@@ -220,7 +255,7 @@ def extract_concepts(penman_str: str) -> List[str]:
         return tokens
 
 
-def concepts2glosses(tokens: List[str], src_sentence: str) -> List[str]:
+def concepts2glosses(tokens: List[str], src_sentence: str, sign_lang: str) -> List[str]:
     """Convert a list of tokens/concepts (extracted from AMR) to glosses by using
     mappings that were collected from the VGT dictionary.
 
@@ -264,10 +299,11 @@ def concepts2glosses(tokens: List[str], src_sentence: str) -> List[str]:
                 continue
             else:
                 try:
-                    best_match = find_closest(text=src_sentence, candidates=en2glosses[token])
+                    candidates = get_gloss_candidates(token, sign_lang=sign_lang)
+                    best_match = find_closest(text=src_sentence, candidates=candidates)
                     glosses.append(best_match)
 
-                    logging.info(f"Best gloss for {token} (out of {en2glosses[token]}): {best_match}")
+                    logging.info(f"Best gloss for {token} (out of {candidates}): {best_match}")
                 except KeyError:
                     glosses.append(token)
 

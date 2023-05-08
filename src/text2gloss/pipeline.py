@@ -1,11 +1,16 @@
+from typing import Literal
+
 from text2gloss.utils import send_request
 
 
-def run_pipeline(text: str, port: int = 5000, verbose: bool = True):
-    glosses = send_request("text2gloss", port=port, params={"text": text})
+def run_pipeline(text: str,
+                 sign_lang: Literal["vgt", "ngt"] = "vgt",
+                 port: int = 5000,
+                 verbose: bool = True):
+    glosses = send_request("text2gloss", port=port, params={"text": text, "sign_lang": sign_lang})
     if verbose and glosses:
         print("text", text)
-        print(glosses)
+        print(sign_lang.upper(), glosses)
 
     return glosses
 
@@ -25,6 +30,13 @@ def main():
         "text",
         help="Text to translate to glosses",
     )
+    cparser.add_argument(
+        "sign_lang",
+        choices=("vgt", "ngt"),
+        default="vgt",
+        help="Sign language (gloss representation) to translate to",
+    )
+
     cparser.add_argument(
         "--port",
         type=int,
