@@ -3,10 +3,7 @@ from typing import Literal
 from text2gloss.utils import send_request
 
 
-def run_pipeline(text: str,
-                 sign_lang: Literal["vgt", "ngt"] = "vgt",
-                 port: int = 5000,
-                 verbose: bool = True):
+def run_pipeline(text: str, sign_lang: Literal["vgt", "ngt"] = "vgt", port: int = 5000, verbose: bool = True):
     glosses = send_request("text2gloss", port=port, params={"text": text, "sign_lang": sign_lang})
     if verbose and glosses:
         print("text", text)
