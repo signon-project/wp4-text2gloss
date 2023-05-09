@@ -19,13 +19,6 @@ from transformers import LogitsProcessorList
 from typing_extensions import Annotated
 
 
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-    datefmt="%m/%d/%Y %H:%M:%S",
-    handlers=[logging.StreamHandler(sys.stdout)],
-    level=logging.INFO,
-)
-
 logging.getLogger("penman").setLevel(logging.WARNING)
 
 
@@ -43,6 +36,8 @@ class Settings(BaseSettings):
     mbart_quantize: bool = True
     mbart_num_beams: int = 3
 
+    logging_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"] = "INFO"
+
 
 settings = Settings()
 resources = {}
@@ -51,6 +46,13 @@ resources = {}
 # see https://fastapi.tiangolo.com/advanced/events/
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%m/%d/%Y %H:%M:%S",
+        handlers=[logging.StreamHandler(sys.stdout)],
+        level=settings.logging_level,
+    )
+
     if not settings.no_sbert:
         resources["stransformer"] = SentenceTransformer(settings.sbert_model_name, device=settings.sbert_device)
         logging.info(f"Using {resources['stransformer']._target_device} for Sentence Transformers")
@@ -178,6 +180,10 @@ def find_closest(
     candidates_std = [standardize_gloss(gloss).lower() for gloss in candidates]
     vecs = get_tokens_vectors([text] + candidates_std)
     sims = util.cos_sim(vecs[0], vecs[1:]).squeeze(dim=0)
+    logging.debug(f"TEXT: {text}")
+    logging.debug(f"CANDIDATES: {candidates}")
+    logging.debug(f"CANDIDATES (STD): {candidates_std}")
+    logging.debug(f"SIMILARITIES: {sims}")
     best_cand_idx = sims.argmax(axis=0).item()
 
     return candidates[best_cand_idx]
@@ -191,7 +197,7 @@ async def get_gloss_candidates(en_token: str, sign_lang: Literal["vgt", "ngt"]) 
     results = await resources["database"].fetch_all(query=query)
     # Flatten. Output above is list of singleton-tuples.
     results = [r for res in results for r in res]
-    print(type(results), results)
+    logging.debug(f"DB RESULTS FOR {en_token} in {sign_lang}: {results}")
 
     return results
 
@@ -211,8 +217,7 @@ def extract_concepts(penman_str: str) -> List[str]:
     except Exception:
         return extract_concepts_from_invalid_penman(penman_str)
     else:
-        logging.info("AMR GRAPH")
-        logging.info(graph)
+        logging.debug(f"AMR GRAPH: {graph}")
         tokens = []
         for source, role, target in graph.triples:
             if source is None or target is None:
@@ -237,7 +242,7 @@ def extract_concepts(penman_str: str) -> List[str]:
                 if not (len(target) == 1 and target.isalpha()):
                     tokens.append(target)
 
-        logging.info(f"Extracted concepts: {tokens}")
+        logging.debug(f"Extracted AMR concepts: {tokens}")
         return tokens
 
 
@@ -247,6 +252,7 @@ async def concepts2glosses(tokens: List[str], src_sentence: str, sign_lang: Lite
 
     :param tokens: list of AMR tokens/concepts
     :param src_sentence: full input sentence
+    :param sign_lang: which sign language to generate glosses for
     :return: a list of glosses
     """
     glosses = []
@@ -293,7 +299,7 @@ async def concepts2glosses(tokens: List[str], src_sentence: str, sign_lang: Lite
                 except KeyError:
                     glosses.append(token)
 
-    logging.info(f"Glosses: {glosses}")
+    logging.debug(f"Glosses: {glosses}")
 
     return glosses
 
@@ -306,7 +312,7 @@ async def run_pipeline(
             title="Text to convert to a penman representation",
         ),
     ],
-    sign_lang: Annotated[Literal["vgt", "ngt"], Query(title="Which language to generate")] = "vgt",
+    sign_lang: Annotated[Literal["vgt", "ngt"], Query(title="Which sign language to generate glosses for")] = "vgt",
 ) -> Dict[str, Any]:
     if (
         not resource_exists("amr_model")
