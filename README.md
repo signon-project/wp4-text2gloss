@@ -69,9 +69,11 @@ database. This database will later be used in the pipeline.
 
 
 ```shell
-preprocess-gloss data/vgt-woordenboek-27_03_2023-reformat-openai.tsv data/glosses.sqlite nl_vgt --port 5001
+preprocess-gloss data/vgt-woordenboek-27_03_2023-reformat-openai.tsv data/glosses.db nl_vgt --port 5001
 ```
 
+Repeat this process for all languages that you need. The database will be modified in-place. Specifically,
+we add separate tables for the separate languages.
 
 
 ### 4. Full text2gloss pipeline
@@ -80,19 +82,23 @@ preprocess-gloss data/vgt-woordenboek-27_03_2023-reformat-openai.tsv data/glosse
 [FastAPI inference server](#fastapi-inference-server))
 
 The fulle pipeline allows you to input a sentence and get back a sequence of glosses. Under the hood, this will
-make use of text2amr neural models, then the English PropBank concepts will be extracted from that AMR,
-and finally the processed JSON-version of the dictionary (cf. 
+make use of text2amr neural model, then the English PropBank concepts will be extracted from that AMR,
+and finally the processed SQLite version of the dictionary (cf. 
 [step 1.1](#3-add-multilingual-wordnet-synset-translations-and-disambiguate)) will be used to find glosses that
 correspond with the extracted English concepts. If multiple gloss options are available, we use LABSE to calculate
-the similarity. The gloss that is closest to the English query word is then selected as the final gloss.
+the similarity. The gloss that is closest to the input sentence is then selected as the final gloss.
 
-The required input is the sentence to covert, the source language ('Dutch' or 'English'), and the path to the JSON file
-that was generated in the previous step.
+The required input is the sentence to covert, the target language (e.g. "vgt" or "ngt").
 
 ```shell
-text2gloss "I want to eat my grandma's cookies"
+text2gloss "I want to eat my grandma's cookies" vgt
 ```
 
+The output printed to the console will look something like this:
+
+```
+VGT {'glosses': ['WENSEN', 'WG-1', 'ETEN', 'KOEK', 'GROOTMOEDER'], 'meta': {'amr_concepts': ['want', 'i', 'eat', 'cookie', 'person', 'have-rel-role', 'grandmother']}}
+```
 
 
 ## FastAPI inference server
@@ -118,20 +124,25 @@ value. If for instance you want to make sure that the models are NOT using a GPU
 `docker run`.
 
 ```python
-json_vgt_dictionary: str = r"vgt-woordenboek-27_03_2023+openai+wn_transls.json"
+no_db: bool = False
+db_path: str = "glosses.db"
 
+no_sbert: bool = False
 sbert_model_name: str = "sentence-transformers/LaBSE"
 sbert_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
 
+no_amr: bool = False
 mbart_input_lang: Literal["English", "Dutch"] = "English"
 mbart_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
 mbart_quantize: bool = True
 mbart_num_beams: int = 3
+
+logging_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"] = "INFO"
 ```
 
-This server needs to be started before running the `text2gloss` and `translate-wn` scripts.
+**!!NOTE!!** To use these settings above, you need to use them as environment variables, not as command line flags.
 
-### Downloading VGT videos
+### Downloading videos
 
 Download the corresponding videos from the URLs in a dictionary. Use this on a reformatted dictionary (a 'video'
 column must be present). The required input is the reformatted dictionary, the location to save the videos, and a 
