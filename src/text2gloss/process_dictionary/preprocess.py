@@ -1,6 +1,5 @@
 import logging
 import re
-import sqlite3
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -10,6 +9,7 @@ import requests
 import wn
 from pandas import DataFrame, Series
 from sentence_transformers import util
+from sqlalchemy import create_engine
 from text2gloss.utils import send_request, standardize_gloss
 from tqdm import tqdm
 
@@ -149,8 +149,6 @@ def filter_en_translations(df: DataFrame, lang_col: str, threshold: float = 0.5,
 
 
 def build_en2gloss_database(df: DataFrame, db_path: str, lang_col: str):
-    con = sqlite3.connect(db_path)
-
     # Convert format to en->gloss
     en2gloss = []
     for item in df.to_dict(orient="records"):
@@ -162,16 +160,19 @@ def build_en2gloss_database(df: DataFrame, db_path: str, lang_col: str):
 
     en2gloss_df = pd.DataFrame(en2gloss)
     en2gloss_df = en2gloss_df.drop_duplicates().reset_index(drop=True)
+
     sl_type = lang_col.split("_")[1] if "_" in lang_col else lang_col
     gloss_tbl = f"{sl_type}_en2gloss_tbl"
-    en2gloss_df.to_sql(gloss_tbl, con=con, if_exists="replace")
-    db_cur = con.cursor()
-    db_cur.execute(f"CREATE INDEX idx_{sl_type}_en ON {gloss_tbl} (en);")
 
-    con.close()
+    engine = create_engine(f"sqlite:///{db_path}", echo=False)
+    with engine.connect() as conn:
+        en2gloss_df.to_sql(gloss_tbl, con=conn, if_exists="replace", index=False)
+        conn.execute(f"CREATE INDEX idx_{sl_type}_en ON {gloss_tbl} (en);")
 
 
-def process_dictionary(fin: str, dbout: str, lang_col: str, threshold: float = 0.5, port: int = 5000):
+def process_dictionary(
+    fin: str, dbout: str, lang_col: str, threshold: float = 0.5, only_db: bool = False, port: int = 5000
+):
     """Generate WordNet translations for the words in the "possible translation" column in the dictionary.
     Then, filter those possible translations by comparing them with the centroid LABSE vector. English translations
     that have a cosine similarity (between -1 and +1) of less than the threshold will not be included in the final
@@ -185,29 +186,36 @@ def process_dictionary(fin: str, dbout: str, lang_col: str, threshold: float = 0
      called 'lang_col_en2gloss_tbl' where lang_col is replaced by the 'lang_col' argument given
     :param lang_col: key to the language column with 'explanations' (possible translations)
     :param threshold: similarity threshold. Lower similarity English words will not be included.
+    :param only_db: whether to only generate the database. This assumes that the modified TSV file already exists!
     :param port: port where the inference server is running
     """
+
     pfin = Path(fin).resolve()
+    if only_db:
+        pfout_tsv = pfin.with_name(f"{pfin.stem}-prepr{pfin.suffix}")
+        df = pd.read_csv(pfout_tsv, sep="\t", encoding="utf-8")
+        df = df.dropna()
+    else:
+        df = pd.read_csv(fin, sep="\t", encoding="utf-8")
+        had_en_column = "en" in df.columns
+        df[lang_col] = df[lang_col].apply(
+            lambda explanation: ", ".join(map(str.strip, re.split(r"\s*,\s*", explanation)))
+        )  # clean possible white-space issues
+        df = add_en_translations(df, lang_col=lang_col)
 
-    df = pd.read_csv(fin, sep="\t", encoding="utf-8")
-    had_en_column = "en" in df.columns
-    df[lang_col] = df[lang_col].apply(
-        lambda explanation: ", ".join(map(str.strip, re.split(r"\s*,\s*", explanation)))
-    )  # clean possible white-space issues
-    df = add_en_translations(df, lang_col=lang_col)
+        # Filter/disambiguate translations
+        df = filter_en_translations(df, lang_col=lang_col, threshold=threshold, port=port)
+        df = df.dropna()
 
-    # Filter/disambiguate translations
-    df = filter_en_translations(df, lang_col=lang_col, threshold=threshold, port=port)
+        if not had_en_column:
+            # Reorder columns
+            cols = list(df.columns)
+            extra_cols = [c for c in cols[2:] if c != "en"]
+            df = df[cols[:2] + ["en"] + extra_cols]
 
-    if not had_en_column:
-        # Reorder columns
-        cols = list(df.columns)
-        extra_cols = [c for c in cols[2:] if c != "en"]
-        df = df[cols[:2] + ["en"] + extra_cols]
-
-    pfout_tsv = pfin.with_name(f"{pfin.stem}-prepr{pfin.suffix}")
-    df.to_csv(pfout_tsv, index=False, sep="\t", encoding="utf-8")
-    logging.info(f"Saved updated TSV in {pfout_tsv.resolve()}")
+        pfout_tsv = pfin.with_name(f"{pfin.stem}-prepr{pfin.suffix}")
+        df.to_csv(pfout_tsv, index=False, sep="\t", encoding="utf-8")
+        logging.info(f"Saved updated TSV in {pfout_tsv.resolve()}")
 
     logging.info("Building SQLite DataBase")
     build_en2gloss_database(df=df, db_path=dbout, lang_col=lang_col)
@@ -232,13 +240,13 @@ def main():
     cparser.add_argument(
         "dbout",
         help="path where to store the updated TSV as an SQLite database. The new data will be stored under a"
-             " table called 'lang_col_en2gloss_tbl' where lang_col is replaced by the 'lang_col' argument given"
+        " table called 'lang_col_en2gloss_tbl' where lang_col is replaced by the 'lang_col' argument given",
     )
 
     cparser.add_argument(
         "lang_col",
         help="name of the column that contains the 'explanations' of a gloss after reformatting, typically"
-             " a language code followed by the sign language like 'nl_vgt'"
+        " a language code followed by the sign language like 'nl_vgt'",
     )
     cparser.add_argument(
         "-t",
@@ -246,6 +254,11 @@ def main():
         type=float,
         default=0.5,
         help="similarity threshold. Lower similarity English words will not be included",
+    )
+    cparser.add_argument(
+        "--only_db",
+        action="store_true",
+        help="whether to only generate the database. This assumes that the modified TSV file already exists!",
     )
     cparser.add_argument(
         "--port",
