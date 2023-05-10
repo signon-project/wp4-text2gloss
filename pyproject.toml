@@ -32,7 +32,7 @@ classifiers = [
 requires-python = ">=3.9"
 dependencies = [
         "accelerate",
-        "databases",
+        "databases[aiosqlite]",
         "fastapi",
         "ftfy",
         "mbart_amr @ git+https://github.com/BramVanroy/multilingual-text-to-amr.git",
