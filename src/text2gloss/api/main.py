@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Literal, Tuple
 
 import numpy as np
 import penman
-import torch.cuda
+import torch
 from databases import Database
 from fastapi import FastAPI, HTTPException, Query
 from mbart_amr.data.linearization import linearized2penmanstr
@@ -290,14 +290,13 @@ async def concepts2glosses(tokens: List[str], src_sentence: str, sign_lang: Lite
                 skip_extra = 1
                 continue
             else:
-                try:
-                    candidates = await get_gloss_candidates(token, sign_lang=sign_lang)
+                candidates = await get_gloss_candidates(token, sign_lang=sign_lang)
+                if not candidates:  # English amr token not found in database (skip token)
+                    continue
+                else:
                     best_match = find_closest(text=src_sentence, candidates=candidates)
                     glosses.append(best_match)
-
                     logging.info(f"Best gloss for {token} (out of {candidates}): {best_match}")
-                except KeyError:
-                    glosses.append(token)
 
     logging.debug(f"Glosses: {glosses}")
 
