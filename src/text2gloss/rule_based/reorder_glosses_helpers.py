@@ -1,6 +1,6 @@
 """functions that are needed to reorder the glosses"""
 
-from word_lists import not_
+from text2gloss.rule_based.word_lists import not_
 
 
 def add_word_to_sorted_glosses(sentence_object, index):
@@ -18,10 +18,15 @@ def find_dependencies(sentence_list, head_index):
     if head_index < len(sentence_list):
         word = sentence_list[head_index].text.lower()
         for item in sentence_list:
-            if item.head.lower() == word \
-                    and ('prenom' in item.tag_ or not ('WW' in item.tag_ and sentence_list[head_index].pos_
-                                                       in ['NOUN', 'PRON', 'PROPN'])) and \
-                    not item.is_punct and item.position < len(sentence_list):
+            if (
+                item.head.lower() == word
+                and (
+                    "prenom" in item.tag_
+                    or not ("WW" in item.tag_ and sentence_list[head_index].pos_ in ["NOUN", "PRON", "PROPN"])
+                )
+                and not item.is_punct
+                and item.position < len(sentence_list)
+            ):
                 clause_indices.append(item.position)
     return clause_indices
 
@@ -49,20 +54,25 @@ def move_plural_indicator(sentence_object, clause_indices):
     clause_indices_new = clause_indices.copy()
     sentence = sentence_object.clause_list
     for index in clause_indices:
-        if sentence[index].pos_ == 'NOUN' and 'mv' in sentence[index].tag_:
+        if sentence[index].pos_ == "NOUN" and "mv" in sentence[index].tag_:
             plural_noun_clause_indices = find_dependencies(sentence, index) + [index]
             for index2 in clause_indices:
-                if index != index2 and sentence[index2].pos_ == 'NOUN' \
-                        and 'case' not in [token.dep_ for token in
-                                           sentence[min(plural_noun_clause_indices):max(plural_noun_clause_indices)]]\
-                        and (sentence[index-1].pos_ == 'NOUN' or
-                                                       sentence[min(clause_indices)-1].pos_ == 'NOUN'):
+                if (
+                    index != index2
+                    and sentence[index2].pos_ == "NOUN"
+                    and "case"
+                    not in [
+                        token.dep_
+                        for token in sentence[min(plural_noun_clause_indices) : max(plural_noun_clause_indices)]
+                    ]
+                    and (sentence[index - 1].pos_ == "NOUN" or sentence[min(clause_indices) - 1].pos_ == "NOUN")
+                ):
                     # if there is a noun that our plural noun depends on, eg: een hoop stenen
                     if index2 in plural_noun_clause_indices:
                         plural_noun_clause_indices.remove(index2)
-                    clause_indices_new = plural_noun_clause_indices \
-                                         + [index4 for index4 in clause_indices
-                                            if index4 not in plural_noun_clause_indices]
+                    clause_indices_new = plural_noun_clause_indices + [
+                        index4 for index4 in clause_indices if index4 not in plural_noun_clause_indices
+                    ]
     return clause_indices_new
 
 
@@ -81,20 +91,25 @@ def add_verb_to_sorted_glosses(sentence_object, head_index):
     because we only want to add NIET or adverbs but not other words that depend on the verb"""
     sentence = sentence_object.clause_list
     clause_indices = find_dependencies(sentence_object.clause_list, head_index)
-    adv_indices = [index for index in clause_indices if sentence[index].lemma_ in not_
-                          or (sentence[index].dep_ in ['advmod', 'xcomp'] and sentence[index].pos_ in ['ADJ', 'ADV'])
-                   and index not in sentence_object.question_word_indices]
+    adv_indices = [
+        index
+        for index in clause_indices
+        if sentence[index].lemma_ in not_
+        or (sentence[index].dep_ in ["advmod", "xcomp"] and sentence[index].pos_ in ["ADJ", "ADV"])
+        and index not in sentence_object.question_word_indices
+    ]
     clause_indices_new = adv_indices.copy()
 
     for index in adv_indices:
         # eg heel laag
         dependencies = find_clause_with_head(sentence, index)
-        clause_indices_new += [index3 for index3 in dependencies if sentence[index3].dep_ in ['advmod', 'xcomp']]
+        clause_indices_new += [index3 for index3 in dependencies if sentence[index3].dep_ in ["advmod", "xcomp"]]
     clause_indices_new.sort()
     clause_indices_new += [head_index]
     for index in clause_indices_new:
         add_word_to_sorted_glosses(sentence_object, index)
     return sentence_object
+
 
 ##############################
 
@@ -102,17 +117,19 @@ def add_verb_to_sorted_glosses(sentence_object, head_index):
 def find_relative_clause(sentence_list, rel_pronoun_index):
     """find all the words that depend on the head (recursively) + sort indices"""
     try:
-        index_of_head_of_rel_pron = [token.text for token in sentence_list].index(sentence_list[rel_pronoun_index].head)
+        index_of_head_of_rel_pron = [token.text for token in sentence_list].index(
+            sentence_list[rel_pronoun_index].head
+        )
         clause_indices = find_clause_with_head(sentence_list, index_of_head_of_rel_pron)
         clause_indices.sort()
         return clause_indices
-    except:
+    except Exception:
         return []
 
 
 def head_of_sub_clause_before(sentence_list, conj_index):
     """check whether the head of a clause is before or after the clause
-    eg: 'voordat hij naar buiten ging, ...' >< '..., voordat hij naar buiten ging' """
+    eg: 'voordat hij naar buiten ging, ...' >< '..., voordat hij naar buiten ging'"""
     try:
         index_of_head_of_conj = [token.text for token in sentence_list].index(sentence_list[conj_index].head)
         index_of_head_clause = [token.text for token in sentence_list].index(sentence_list[index_of_head_of_conj].head)
@@ -120,5 +137,5 @@ def head_of_sub_clause_before(sentence_list, conj_index):
             return True
         else:
             return False
-    except:
+    except Exception:
         return False

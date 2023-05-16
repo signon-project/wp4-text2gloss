@@ -4,11 +4,21 @@
 
 
 import re
-from word_lists import may_can, adverbs_at_front, adverbs_after_temporal_clause, conj_at_front, be_conjugation, \
-    general_there
-from reorder_glosses_helpers import add_clause_to_sorted_glosses, add_word_to_sorted_glosses, \
-    add_verb_to_sorted_glosses
-from dutch_to_gloss import dutch_to_gloss
+
+from text2gloss.rule_based.dutch_to_gloss import dutch_to_gloss
+from text2gloss.rule_based.reorder_glosses_helpers import (
+    add_clause_to_sorted_glosses,
+    add_verb_to_sorted_glosses,
+    add_word_to_sorted_glosses,
+)
+from text2gloss.rule_based.word_lists import (
+    adverbs_after_temporal_clause,
+    adverbs_at_front,
+    be_conjugation,
+    conj_at_front,
+    general_there,
+    may_can,
+)
 
 
 def reorder_glosses(sentence_list):
@@ -37,7 +47,12 @@ def reorder_glosses(sentence_list):
     sentence_started = False
     while not sentence_started:
         for index, item in enumerate(sentence):
-            if item.pos_ in ('SCONJ', 'CCONJ') or 'INTJ' in item.pos_ and not sentence_started and item.dep_ != 'fixed':
+            if (
+                item.pos_ in ("SCONJ", "CCONJ")
+                or "INTJ" in item.pos_
+                and not sentence_started
+                and item.dep_ != "fixed"
+            ):
                 add_word_to_sorted_glosses(sentence_object, index)
             else:
                 break
@@ -45,8 +60,9 @@ def reorder_glosses(sentence_list):
 
     # add simple BW such as 'dan, daarna'
     for index, item in enumerate(sentence):
-        if (item.tag_ == 'BW' and item.lemma_ in adverbs_at_front)\
-                or (item.tag_ == 'VG|neven' and item.lemma_ in conj_at_front):
+        if (item.tag_ == "BW" and item.lemma_ in adverbs_at_front) or (
+            item.tag_ == "VG|neven" and item.lemma_ in conj_at_front
+        ):
             add_word_to_sorted_glosses(sentence_object, index)
 
     # temporal clause always at the front of the sentence
@@ -56,7 +72,7 @@ def reorder_glosses(sentence_list):
 
     # add simple BW such as 'misschien, ook, altijd'
     for index, item in enumerate(sentence):
-        if item.tag_ == 'BW' and item.lemma_ in adverbs_after_temporal_clause:
+        if item.tag_ == "BW" and item.lemma_ in adverbs_after_temporal_clause:
             add_word_to_sorted_glosses(sentence_object, index)
 
     # add the question clause
@@ -69,15 +85,14 @@ def reorder_glosses(sentence_list):
     for index, item in enumerate(sentence):
         if index > 0:
             if item.lemma_ in be_conjugation and sentence[index - 1].lemma_ in general_there:
-                add_word_to_sorted_glosses(sentence_object, index-1)
+                add_word_to_sorted_glosses(sentence_object, index - 1)
                 add_word_to_sorted_glosses(sentence_object, index)
 
     # WG-1 and new subject come at the front of the sentence, other WG at the end
     if subj_index is not False:
-        if not re.match(r'WG-[23456]', sentence[subj_index].new_form) \
-                and subj_index not in question_word_indices:
+        if not re.match(r"WG-[23456]", sentence[subj_index].new_form) and subj_index not in question_word_indices:
             add_clause_to_sorted_glosses(sentence_object, subj_index)
-        # WG-1 and all other subjects: SVO >< if subject = WG-2..6: OVS
+            # WG-1 and all other subjects: SVO >< if subject = WG-2..6: OVS
 
             # the iobj: if it is a pronoun, it is added to the verb and the new_form is empty
             if iobj_index is not False:
@@ -115,19 +130,21 @@ def reorder_glosses(sentence_list):
 
     # add the extra information
     for index, item in enumerate(sentence):
-        if not item.new_position_assigned \
-                and index not in question_word_indices + [index for index in sentence_object.subj_index if subj_index is not False] \
-                and item.pos_ != 'PUNCT':
+        if (
+            not item.new_position_assigned
+            and index
+            not in question_word_indices + [index for index in sentence_object.subj_index if subj_index is not False]
+            and item.pos_ != "PUNCT"
+        ):
             add_clause_to_sorted_glosses(sentence_object, index)
 
     # add the subject if it is a WG
     if subj_index is not False:
-        if not sentence[subj_index].new_position_assigned \
-                and subj_index not in question_word_indices:
+        if not sentence[subj_index].new_position_assigned and subj_index not in question_word_indices:
             add_word_to_sorted_glosses(sentence_object, subj_index)
 
     for index, item in enumerate(sentence):
         # in sentence with 'ik weet niet of ...' --> 'of' replaced with '?' (in change mistakes)
-        if item.text == '?':
+        if item.text == "?":
             add_word_to_sorted_glosses(sentence_object, index)
     return sentence_object
