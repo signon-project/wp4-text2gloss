@@ -101,6 +101,31 @@ VGT {'glosses': ['WENSEN', 'WG-1', 'ETEN', 'KOEK', 'GROOTMOEDER'], 'meta': {'amr
 ```
 
 
+### 5. Full text2gloss pipeline (rule-based)
+
+The text2gloss pipeline was initially created with the idea that, because we start from AMR, we could work with any 
+language: either through multilingual AMR generation or first via MT from X-to-EN and then EN to AMR. In reality, we
+are still limited by other parts of the pipeline, namely the signbank ("dictionary"). If a language does not have
+a dictionary with glosses, that can be linked to videos, then that pipeline has little benefit over a simpler pipeline
+that can produce pseudo-glosses.
+
+In earlier iterations of this project, Maud Goddefroy (with help of other partners) worked on rule-based generation
+of (pseudo-)glosses for Dutch->VGT. The initial code has been adapted slightly by Bram Vanroy and integrated in this
+package as well. It can be used as such:
+
+```shell
+rb-text2gloss "Ik wil graag koekjes eten" --port 5001
+```
+
+The `--port` argument is only required if it differs from the default (`5000`).
+
+To run the code, the inference server must be running (see below). You can disable many of the other components, as we
+only need spaCy for this pipeline. (Of course the command below only works if you have built the image first.)
+
+```shell
+docker run --env NO_SBERT=true --env NO_AMR=true --env NO_DB=true --rm -d --name text2gloss -p 5000:5000 text2gloss-img
+```
+
 ## FastAPI inference server
 
 An inference server is included to serve the MBART AMR pipeline as well as LABSE vector creation.
@@ -143,10 +168,11 @@ mbart_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else 
 mbart_quantize: bool = True
 mbart_num_beams: int = 3
 
+no_spacy_nl: bool = False
+
 logging_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"] = "INFO"
 ```
 
-**!!NOTE!!** To use these settings above, you need to use them as environment variables, not as command line flags.
 
 ### Downloading videos
 

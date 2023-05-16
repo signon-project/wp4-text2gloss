@@ -140,7 +140,7 @@ def transform_verb2(sentence_object, index, item, all_not_signed_verbs):
     return sentence_object
 
 
-def join_separable_verbs(sentence_object, item):
+def join_separable_verbs(sentence_object, index, item):
     sentence = sentence_object.clause_list
     if not (item.lemma_ == "af" and "van" in [item5.lemma_ for item5 in sentence]):
         # !! valt van het gebouw af --> NOT afvallen
