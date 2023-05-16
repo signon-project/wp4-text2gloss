@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "text2gloss"
 # Do not forget to change in __init__.py too!
-version = "1.0.0"
+version = "1.0.1"
 authors = [
     {name = "Bram Vanroy", email = "bramvanroy@hotmail.com"},
 ]
@@ -31,23 +31,24 @@ classifiers = [
 
 requires-python = ">=3.9"
 dependencies = [
-        "accelerate",
-        "databases[aiosqlite]",
-        "fastapi",
-        "ftfy",
+        "accelerate==0.18.0",
+        "databases[aiosqlite]==0.7.0",
+        "fastapi==0.95.1",
+        "ftfy==6.1.1",
         "mbart_amr @ git+https://github.com/BramVanroy/multilingual-text-to-amr.git",
-        "networkx",
-        "openai",
-        "optimum",
-        "pandas",
-        "penman>=1.2.2",
-        "pydantic",
-        "requests",
-        "sentence_transformers",
-        "tqdm",
-        "typing_extensions",
-        "uvicorn[standard]",
-        "wn",
+        "openai==0.27.4",
+        "optimum==1.8.2",
+        "pandas==2.0.1",
+        "penman==1.2.2",
+        "pydantic==1.10.7",
+        "requests==2.28.2",
+        "sentence-transformers==2.2.2",
+        "spacy==3.5.3",
+        "telwoord==0.4",
+        "tqdm==4.65.0",
+        "typing_extensions==4.5.0",
+        "uvicorn[standard]==0.21.1",
+        "wn==0.9.3",
 ]
 
 [project.urls]
