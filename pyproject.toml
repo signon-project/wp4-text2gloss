@@ -67,6 +67,7 @@ line-length = 119
 target-version = ["py39", "py310", "py311"]
 
 [tool.isort]
+profile = "black"
 ensure_newline_before_comments = true
 line_length = 119
 default_section = "FIRSTPARTY"
@@ -82,3 +83,4 @@ translate-openai = "text2gloss.process_dictionary.translate_openai:main"
 download-videos = "text2gloss.process_dictionary.download_videos:main"
 preprocess-gloss = "text2gloss.process_dictionary.preprocess:main"
 text2gloss = "text2gloss.pipeline:main"
+rb-text2gloss = "text2gloss.rule_based.translate:main"
