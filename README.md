@@ -114,14 +114,20 @@ uvicorn main:app --port 5000
 Alternatively, you can use the Dockerfile to set up the server.
 
 ```shell
-docker build -t text2gloss-vgt-img .
-docker run --rm -d --name text2gloss -p 5000:5000 text2gloss-vgt-img
+docker build -t text2gloss-img .
+docker run --rm -d --name text2gloss -p 5000:5000 text2gloss-img
 ```
 
 Some configuration is possible. Below you find them (but you should add them as uppercase) with their type and default
 value. If for instance you want to make sure that the models are NOT using a GPU, you can use
 `SBERT_DEVICE="cpu" MBART_DEVICE="cpu"`. To set these environment variables in Docker, use the --env option with
-`docker run`.
+`docker run`, for instance:
+
+```shell
+docker run --env NO_SBERT=true --env NO_AMR=true --env NO_DB=true --rm -d --name text2gloss -p 5000:5000 text2gloss-img
+```
+
+These are all the options that are available and their defaults.
 
 ```python
 no_db: bool = False
