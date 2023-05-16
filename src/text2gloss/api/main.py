@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Literal, Tuple
 
 import numpy as np
 import penman
+import spacy
 import torch
 from databases import Database
 from fastapi import FastAPI, HTTPException, Query
@@ -36,6 +37,8 @@ class Settings(BaseSettings):
     mbart_quantize: bool = True
     mbart_num_beams: int = 3
 
+    no_spacy_nl: bool = False
+
     logging_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"] = "INFO"
 
 
@@ -52,10 +55,12 @@ async def lifespan(app: FastAPI):
         handlers=[logging.StreamHandler(sys.stdout)],
         level=settings.logging_level,
     )
-
+    print(settings.no_sbert)
     if not settings.no_sbert:
         resources["stransformer"] = SentenceTransformer(settings.sbert_model_name, device=settings.sbert_device)
         logging.info(f"Using {resources['stransformer']._target_device} for Sentence Transformers")
+    else:
+        logging.info("Sentence Transformers disabled.")
 
     if not settings.no_amr:
         amr_model, amr_tokenizer, amr_logitsprocessor = get_resources(
@@ -72,12 +77,21 @@ async def lifespan(app: FastAPI):
         resources["amr_model"] = amr_model
         resources["amr_tokenizer"] = amr_tokenizer
         resources["amr_gen_kwargs"] = amr_gen_kwargs
+    else:
+        logging.info("Sentence Transformers disabled.")
 
     if not settings.no_db:
         db_path = str(Path(settings.db_path).resolve().expanduser())
         logging.info(f"Using database file at {db_path}")
         resources["database"] = Database(f"sqlite:///{db_path}")
         await resources["database"].connect()
+    else:
+        logging.info("AMR disabled.")
+
+    if not settings.no_spacy_nl:
+        resources["spacy_nl"] = spacy.load("nl_core_news_lg")
+    else:
+        logging.info("spaCy Dutch disabled.")
 
     yield
 
@@ -332,3 +346,18 @@ async def run_pipeline(
     glosses = await concepts2glosses(amr_concepts, src_sentence=text, sign_lang=sign_lang)
 
     return {"glosses": glosses, "meta": {"amr_concepts": amr_concepts}}
+
+
+@app.get("/rb_text2gloss/")
+async def run_rb_pipeline(
+    text: Annotated[
+        str,
+        Query(
+            title="Text to convert to a penman representation",
+        ),
+    ],
+):
+    if not resource_exists("spacy_nl"):
+        raise HTTPException(status_code=404, detail="The spaCy NL model was not loaded.")
+
+    raise HTTPException(status_code=501, detail="End-point not implemented.")
