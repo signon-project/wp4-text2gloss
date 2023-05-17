@@ -63,6 +63,7 @@ class Settings(BaseSettings):
 
     logging_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"] = "INFO"
 
+
 settings = Settings()
 resources = {}
 
