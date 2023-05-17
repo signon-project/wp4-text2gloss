@@ -120,7 +120,8 @@ rb-text2gloss "Ik wil graag koekjes eten" --port 5001
 The `--port` argument is only required if it differs from the default (`5000`).
 
 To run the code, the inference server must be running (see below). You can disable many of the other components, as we
-only need spaCy for this pipeline. (Of course the command below only works if you have built the image first.)
+only need spaCy for this pipeline. (Of course the command below only works if you have built the image first.) This is
+discussed in more detail in the section [below](#fastapi-inference-server).
 
 ```shell
 docker run --env NO_SBERT=true --env NO_AMR=true --env NO_DB=true --rm -d --name text2gloss -p 5000:5000 text2gloss-img
@@ -130,9 +131,10 @@ docker run --env NO_SBERT=true --env NO_AMR=true --env NO_DB=true --rm -d --name
 
 An inference server is included to serve the MBART AMR pipeline as well as LABSE vector creation.
 
-Start the server by going into `src/text2gloss/api` and running:
+Start the server by running:
 
 ```shell
+cd src/text2gloss/api
 uvicorn main:app --port 5000
 ```
 
@@ -145,11 +147,25 @@ docker run --rm -d --name text2gloss -p 5000:5000 text2gloss-img
 
 Some configuration is possible. Below you find them (but you should add them as uppercase) with their type and default
 value. If for instance you want to make sure that the models are NOT using a GPU, you can use
-`SBERT_DEVICE="cpu" MBART_DEVICE="cpu"`. To set these environment variables in Docker, use the --env option with
+`SBERT_DEVICE="cpu" MBART_DEVICE="cpu"`. If you are running the command from the command-line, you can use
+
+Windows (PowerShell):
+
+```shell
+$env:NO_SBERT="true"; $env:NO_AMR="true"; uvicorn main:app
+```
+
+Bash:
+
+```shell
+NO_SBERT="true" NO_AMR="true" uvicorn main:app
+```
+
+To set these environment variables in Docker, use the --env option with
 `docker run`, for instance:
 
 ```shell
-docker run --env NO_SBERT=true --env NO_AMR=true --env NO_DB=true --rm -d --name text2gloss -p 5000:5000 text2gloss-img
+docker run --env NO_SBERT=true --env NO_AMR=true --rm -d --name text2gloss -p 5000:5000 text2gloss-img
 ```
 
 These are all the options that are available and their defaults.
