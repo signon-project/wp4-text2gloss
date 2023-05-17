@@ -42,9 +42,6 @@ from transformers import LogitsProcessorList
 from typing_extensions import Annotated
 
 
-logging.getLogger("penman").setLevel(logging.WARNING)
-
-
 class Settings(BaseSettings):
     no_db: bool = False
     db_path: str = "glosses.db"
@@ -77,6 +74,8 @@ async def lifespan(app: FastAPI):
         handlers=[logging.StreamHandler(sys.stdout)],
         level=settings.logging_level,
     )
+    logging.getLogger("penman").setLevel(settings.logging_level)
+
     if not settings.no_sbert:
         resources["stransformer"] = SentenceTransformer(settings.sbert_model_name, device=settings.sbert_device)
         logging.info(f"Using {resources['stransformer']._target_device} for Sentence Transformers")
@@ -246,120 +245,137 @@ async def get_gloss_candidates(en_token: str, sign_lang: Literal["vgt", "ngt"]) 
 #########################################
 # AMR GENERATION AND CONCEPT EXTRACTION #
 #########################################
-def extract_concepts_from_invalid_penman(penman_str):
-    # TODO: probably a regex/string-based extraction?
-    return []
-
-
-def extract_concepts(penman_str: str) -> List[str]:
-    """Extract concepts from a given penman string
-    :param penman_str: AMR in penman format
-    :return: a list of concepts (str)
-    """
-    try:
-        graph = penman.decode(penman_str)
-    except Exception:
-        return extract_concepts_from_invalid_penman(penman_str)
-    else:
-        logging.debug(f"AMR GRAPH: {graph}")
-        tokens = []
-        for source, role, target in graph.triples:
-            if source is None or target is None:
-                continue
-
-            if role == ":location":
-                tokens.append("in")
-            elif role == ":instance":
-                if target == "amr-unknown":
-                    # Questions
-                    continue
-                target = re.sub(r"(\w)-\d+$", "\\1", target)  # Remove frame/concept sense ID
-                tokens.append(target)
-            elif role == ":polarity" and target == "-":
-                tokens.append("NIET")
-            elif role == ":quant":
-                # :quant can sometimes occur as precursor to other quant, e.g.:
-                #   ('c', ':quant', 'v'): [Push(v)],
-                #     ('v', ':instance', 'volume-quantity'): [],
-                #     ('v', ':quant', '2'): [],
-                # So we want to ignore the first quant
-                if not (len(target) == 1 and target.isalpha()):
-                    tokens.append(target)
-
-        logging.debug(f"Extracted AMR concepts: {tokens}")
-        return tokens
-
-
-async def concepts2glosses(tokens: List[str], src_sentence: str, sign_lang: Literal["vgt", "ngt"]) -> List[str]:
+async def concepts2glosses(
+    graph: penman.Graph, src_sentence: str, sign_lang: Literal["vgt", "ngt"]
+) -> Tuple[List[str], Dict]:
     """Convert a list of tokens/concepts (extracted from AMR) to glosses by using
     mappings that were collected from the VGT dictionary.
 
-    :param tokens: list of AMR tokens/concepts
+    :param graph: penman graph
     :param src_sentence: full input sentence
     :param sign_lang: which sign language to generate glosses for
     :return: a list of glosses
     """
     glosses = []
+    meta = {"is_unknown": False, "mode": None}
     skip_extra = 0
 
-    for token_idx in range(len(tokens)):
+    triples = graph.triples
+    for triple_idx in range(len(triples)):
+        source, role, target = triples[triple_idx]
         if skip_extra:
             skip_extra -= 1
             continue
 
-        token = tokens[token_idx]
-        # We can ignore the special "quantity" identifier
-        if token.endswith(("-quantity",)):
+        if source is None or target is None:
             continue
-        elif token == "cause":
-            glosses.append("[PU]")
-        elif token in "i":
-            glosses.append("WG-1")
-        elif token == "you":
-            glosses.append("WG-2")
-        elif token in ("he", "she", "they"):
-            glosses.append("WG-3")
-        elif token == "we":
-            glosses.append("WG-4")
-        elif token.isdigit():  # Copy digits
-            glosses.append(token)
-        elif token.startswith('"') and token.endswith('"'):  # Copy literal items but remove quotes
-            glosses.append(token[1:-1])
-        else:  # Conditions that require info about the next token
-            next_token = tokens[token_idx + 1] if token_idx < len(tokens) - 1 else None
-            # If this token is "city" and the next token is the city name, we can ignore "city"
-            if token in ("city", "station") and next_token and next_token[0].isupper():
+
+        if role == ":location":
+            continue
+        elif role == ":mode":
+            meta["mode"] = target
+            continue
+        elif role == ":instance" or role.startswith(":op"):
+            if target == "amr-unknown":
+                # Questions
+                meta["is_unknown"] = True
                 continue
-            elif token == "person" and next_token and next_token == "have-rel-role":
-                skip_extra = 1
+
+            target = re.sub(r"(\w)-\d+$", "\\1", target)  # Remove frame/concept sense ID
+
+            # We can ignore the special "quantity" identifier
+            if target.endswith(("-quantity",)):
                 continue
-            else:
-                candidates = await get_gloss_candidates(token, sign_lang=sign_lang)
+            elif target in ("this", "that"):  # Skip demonstratives
+                continue
+            elif target == "possible":  # "how" questions
+                # First I used ""HOE" here but that does not work in many cases,
+                # e.g., "Could (~'possible') you clarify that"
+                continue
+            elif target == "cause":
+                glosses.append("[PU]")
+            elif target in "i":
+                glosses.append("WG-1")
+            elif target == "you":
+                glosses.append("WG-2")
+            elif target in ("he", "she", "they"):
+                glosses.append("WG-3")
+            elif target == "we":
+                glosses.append("WG-4")
+            elif target == "have":
+                continue
+            elif target.isdigit():  # Copy digits
+                glosses.append(target)
+            elif target.startswith('"') and target.endswith('"'):  # Copy literal items but remove quotes
+                glosses.append(target[1:-1])
+            else:  # Conditions that require info about the next token
+                next_triple = triples[triple_idx + 1] if triple_idx < len(triples) - 1 else None
+                if next_triple is not None:
+                    next_source, next_role, next_target = next_triple
+
+                    nn_triple = triples[triple_idx + 2] if triple_idx < len(triples) - 2 else None
+                    if nn_triple is not None:
+                        nn_source, nn_role, nn_target = nn_triple
+                        if target == "language" and next_role == ":mod" and nn_target == "sign":
+                            if sign_lang == "ngt":  # In NGT signbank, gebarentaal is one gloss
+                                glosses.append("GEBARENTAAL")
+                            elif sign_lang == "vgt":  # It is not in VGT signbank
+                                glosses.extend(["GEBAREN", "TAAL"])
+
+                            skip_extra = 2
+                            continue
+
+                    # If this token is "city" and the next token is the city name, we can ignore "city"
+                    if target in ("city", "station") and next_target and next_target[0].isupper():
+                        continue
+                    elif target == "name" and next_target and next_target == "have-rel-role":
+                        skip_extra = 1
+                        continue
+                    elif target == "name" and next_target and next_role.startswith(":op"):
+                        continue
+                    elif target == "person" and next_target and next_target == "have-rel-role":
+                        skip_extra = 1
+                        continue
+
+                # This is execute if next_triple is None OR if none of the exceptions above hold
+                # So if you add a condition above, make sure to add a CONTINUE so that the token is not parsed twice
+                candidates = await get_gloss_candidates(target, sign_lang=sign_lang)
                 if not candidates:  # English amr token not found in database (skip token)
+                    logging.info(f"AMR token '{target}' not found in the database (skipping)")
                     continue
                 else:
                     best_match = find_closest(text=src_sentence, candidates=candidates)
                     glosses.append(best_match)
-                    logging.info(f"Best gloss for {token} (out of {candidates}): {best_match}")
+                    logging.info(f"Best gloss for '{target}' (out of {candidates}): {best_match}")
+
+        elif role == ":polarity" and target == "-":
+            glosses.append("NIET")
+        elif role == ":quant":
+            # :quant can sometimes occur as precursor to other quant, e.g.:
+            #   ('c', ':quant', 'v'): [Push(v)],
+            #     ('v', ':instance', 'volume-quantity'): [],
+            #     ('v', ':quant', '2'): [],
+            # So we want to ignore the first quant
+            if not (len(target) == 1 and target.isalpha()):
+                glosses.append(target)
 
     logging.debug(f"Glosses: {glosses}")
 
-    return glosses
+    return glosses, meta
 
 
 #################################
 # AMR-BASED TEXT2GLOSS PIPELINE #
 #################################
-@app.get("/text2gloss/")
-async def run_pipeline(
+@app.get("/text2linearized_amr/")
+def get_linearized_amr(
     text: Annotated[
         str,
         Query(
-            title="Text to convert to a penman representation",
+            title="Text to convert to a linearized penman representation",
         ),
-    ],
-    sign_lang: Annotated[Literal["vgt", "ngt"], Query(title="Which sign language to generate glosses for")] = "vgt",
-) -> Dict[str, Any]:
+    ]
+):
     if (
         not resource_exists("amr_model")
         or not resource_exists("amr_tokenizer")
@@ -375,10 +391,29 @@ async def run_pipeline(
         **resources["amr_gen_kwargs"],
     )
     penman_str = linearized2penmanstr(linearizeds[0])
-    amr_concepts = extract_concepts(penman_str)
-    glosses = await concepts2glosses(amr_concepts, src_sentence=text, sign_lang=sign_lang)
+    return penman_str
 
-    return {"glosses": glosses, "meta": {"amr_concepts": amr_concepts}}
+
+@app.get("/text2gloss/")
+async def run_pipeline(
+    text: Annotated[
+        str,
+        Query(
+            title="Text to convert to a penman representation",
+        ),
+    ],
+    sign_lang: Annotated[Literal["vgt", "ngt"], Query(title="Which sign language to generate glosses for")] = "vgt",
+) -> Dict[str, Any]:
+    try:
+        penman_str = get_linearized_amr(text)
+        graph = penman.decode(penman_str)
+    except Exception:
+        logging.exception("Could not generate AMR or parse linearization.")
+        glosses, meta = [], {}
+    else:
+        glosses, meta = await concepts2glosses(graph, src_sentence=text, sign_lang=sign_lang)
+
+    return {"glosses": glosses, "meta": meta}
 
 
 ###############
