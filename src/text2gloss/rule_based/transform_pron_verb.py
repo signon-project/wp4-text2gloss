@@ -1,6 +1,7 @@
 """some more advanced functions that transform pronouns, verbs and prepositions while looking at the whole sentence"""
 import re
 
+from text2gloss.rule_based.helpers import delete_item_sometimes
 from text2gloss.rule_based.word_lists import (
     locative_preps,
     locative_verbs,
@@ -12,8 +13,6 @@ from text2gloss.rule_based.word_lists import (
 
 
 def possessive_pronouns(sentence_object, index, item):
-    from helpers import delete_item_sometimes
-
     sentence = sentence_object.clause_list
     all_wg = tuple(item2.new_form for item2 in sentence if "WG" in item2.new_form and item2 != item)
     if item.new_form in all_wg:
