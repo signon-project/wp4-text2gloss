@@ -16,10 +16,16 @@ from tqdm import tqdm
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-    datefmt="%m/%d/%Y %H:%M:%S",
-    handlers=[logging.StreamHandler(sys.stdout)],
+    datefmt="%m/%d %H:%M:%S",
+    filename=Path(__file__).parent.joinpath("preprocess.log"),
     level=logging.INFO,
 )
+# Set up logging to console in addition to logging to file
+console = logging.StreamHandler()
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+console.setFormatter(formatter)
+logging.getLogger("").addHandler(console)
+logger = logging.getLogger("text2gloss")
 
 
 def add_en_translations(df: DataFrame, lang_col: str):
@@ -129,8 +135,9 @@ def filter_en_translations(df: DataFrame, lang_col: str, threshold: float = 0.5,
             sim = util.cos_sim(en_vec, src_centroid).squeeze(dim=0).item()
             if sim >= threshold:
                 valid.append(en_word)
+                logger.debug(f"Adding {en_word}. Close enough to {src_words}! (sim=~{sim:.2f}; threshold={threshold})")
             else:
-                logging.debug(
+                logger.debug(
                     f"Dropping {en_word}. Too distant from {src_words}! (sim=~{sim:.2f}; threshold={threshold})"
                 )
 
@@ -215,9 +222,9 @@ def process_dictionary(
 
         pfout_tsv = pfin.with_name(f"{pfin.stem}-prepr{pfin.suffix}")
         df.to_csv(pfout_tsv, index=False, sep="\t", encoding="utf-8")
-        logging.info(f"Saved updated TSV in {pfout_tsv.resolve()}")
+        logger.info(f"Saved updated TSV in {pfout_tsv.resolve()}")
 
-    logging.info("Building SQLite DataBase")
+    logger.info("Building SQLite DataBase")
     build_en2gloss_database(df=df, db_path=dbout, lang_col=lang_col)
 
 
@@ -266,7 +273,15 @@ def main():
         default=5000,
         help="Local port that the inference server is running on.",
     )
-    process_dictionary(**vars(cparser.parse_args()))
+    cparser.add_argument(
+        "--logging_level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"],
+        default="INFO",
+        help="Logging level.",
+    )
+    cargs = vars(cparser.parse_args())
+    logger.setLevel(cargs.pop("logging_level").upper())
+    process_dictionary(**cargs)
 
 
 if __name__ == "__main__":
