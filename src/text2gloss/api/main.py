@@ -651,4 +651,5 @@ def run_rb_pipeline(
     else:
         glosses = [str(text)]
 
+    glosses = [token for t in glosses if (token := t.strip())]
     return {"glosses": glosses}
