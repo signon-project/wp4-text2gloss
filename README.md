@@ -200,6 +200,18 @@ path to an error log file.
 download-videos data/vgt-woordenboek-27_03_2023-reformat.tsv data/videos error.log
 ```
 
+## Note on offensive content
+
+Consider that neither the input nor the output of the translation has been checked or cleaned. The whole process is
+automatic. It is therefore possible that offensive terms are present in the output. When debugging the pipeline, I found
+that offensive terms (such as the n-word in the NGT signbank) exist in the signbank(s) and in WordNet. OpenAI
+translation seems to avoid such terms.
+
+While the proposed pipeline only generates glosses that are present in the signbanks, you may find these offensive
+terms in intermediate steps in the files in the "meaning" or "translations" columns. Again, these are not manually
+added by us nor will they be generated for the end-user, but they are automatically included due to the input data
+or due to automatic translation (at least via WordNet).
+
 ## LICENSE
 
 Distributed under a GPLv3 [license](LICENSE).
