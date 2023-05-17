@@ -63,7 +63,6 @@ class Settings(BaseSettings):
 
     logging_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"] = "INFO"
 
-
 settings = Settings()
 resources = {}
 
@@ -126,6 +125,19 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+def resource_exists(resource: str) -> bool:
+    return resource in resources and resources[resource]
+
+
+#########################
+# SENTENCE TRANSFORMERS #
+#########################
+def encode_texts(tokens: Tuple[str, ...]):
+    if not resource_exists("stransformer"):
+        raise HTTPException(status_code=404, detail="The Sentence Transformer model was not loaded.")
+    return resources["stransformer"].encode(tokens, device=settings.sbert_device, show_progress_bar=False)
+
+
 @app.get("/centroid/")
 def build_tokens_centroid(
     tokens: Annotated[
@@ -138,16 +150,6 @@ def build_tokens_centroid(
 ):
     vectors = get_tokens_vectors(tokens)
     return np.mean(vectors, axis=0).tolist()
-
-
-def resource_exists(resource: str):
-    return resource in resources and resources[resource]
-
-
-def encode_texts(tokens: Tuple[str, ...]):
-    if not resource_exists("stransformer"):
-        raise HTTPException(status_code=404, detail="The Sentence Transformer model was not loaded.")
-    return resources["stransformer"].encode(tokens, device=settings.sbert_device, show_progress_bar=False)
 
 
 @app.get("/vectors/")
@@ -224,6 +226,9 @@ def find_closest(
     return candidates[best_cand_idx]
 
 
+##################################
+# GLOSS EXTRACTION FROM DATABASE #
+##################################
 async def get_gloss_candidates(en_token: str, sign_lang: Literal["vgt", "ngt"]) -> List[str]:
     if not resource_exists("database"):
         raise HTTPException(status_code=404, detail="The SQLite Database was not loaded.")
@@ -237,6 +242,9 @@ async def get_gloss_candidates(en_token: str, sign_lang: Literal["vgt", "ngt"]) 
     return results
 
 
+#########################################
+# AMR GENERATION AND CONCEPT EXTRACTION #
+#########################################
 def extract_concepts_from_invalid_penman(penman_str):
     # TODO: probably a regex/string-based extraction?
     return []
@@ -338,6 +346,9 @@ async def concepts2glosses(tokens: List[str], src_sentence: str, sign_lang: Lite
     return glosses
 
 
+#################################
+# AMR-BASED TEXT2GLOSS PIPELINE #
+#################################
 @app.get("/text2gloss/")
 async def run_pipeline(
     text: Annotated[
@@ -369,6 +380,9 @@ async def run_pipeline(
     return {"glosses": glosses, "meta": {"amr_concepts": amr_concepts}}
 
 
+###############
+# SPACY DUTCH #
+###############
 @app.get("/parse_spacy_nl/")
 def get_spacy_nl_doc(
     text: Annotated[
@@ -384,6 +398,9 @@ def get_spacy_nl_doc(
     return resources["spacy_nl"](text).to_json()
 
 
+###########################################
+# RULE-BASED COMPONENT TO SPLIT SENTENCES #
+###########################################
 @app.get("/split_sentence/")
 def split_based_on_conjunction_words(
     text: Annotated[
@@ -566,6 +583,9 @@ def split_based_on_conjunction_words(
     return separated_clauses
 
 
+##################################
+# RULE-BASED TEXT2GLOSS PIPELINE #
+##################################
 @app.get("/rb_text2gloss/")
 def run_rb_pipeline(
     text: Annotated[
