@@ -1,5 +1,6 @@
 """some lists that are used: """
 import os
+from pathlib import Path
 
 from text2gloss.rule_based.helpers import read_file
 
@@ -121,13 +122,10 @@ verb_with_congruence = ("geven",)  # ([)'geven', 'verwittigen', 'achtervolgen', 
 # this is not complete
 # some parameter of the sign changes based on subj/obj
 ####################################################################################################################
-__location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+curr_dir = Path(__file__).resolve().parent
+separable_verbs = curr_dir.joinpath("scheidbare_ww.txt").read_text().splitlines()
+seperated_part_of_verb = curr_dir.joinpath("scheidbare_ww_scheidbaar_deel.txt").read_text().splitlines()
 
-with open(os.path.join(__location__, "scheidbare_ww.txt"), "r") as sep_file:
-    separable_verbs = sep_file.read().split("\n")
-
-with open(os.path.join(__location__, "scheidbare_ww_scheidbaar_deel.txt"), "r") as sep_file:
-    seperated_part_of_verb = sep_file.read().split("\n")
 ####################################################################################################################
 time_unit = ("seconde", "minuut", "kwartier", "uur", "dag", "week", "maand", "jaar", "eeuw", "millenium", "tijd")
 time_point = (

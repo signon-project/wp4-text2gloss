@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 
 class Word:
@@ -67,7 +68,7 @@ def delete_item_sometimes(sentence, index, item, percentage_del=50, option_true=
 
 
 def read_file(input):
-    __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+    curr_dir = Path(__file__).resolve().parent
 
     def read(file):
         if input.endswith(".json"):
@@ -86,11 +87,12 @@ def read_file(input):
             output = file.read()
         return output
 
+    pfin = curr_dir.joinpath(input)
     try:
-        file = open(os.path.join(__location__, input), "r", encoding="utf-8")
-        output = read(file)
+        fh = open(pfin, encoding="utf-8")
+        output = read(fh)
     except Exception:
-        file = open(os.path.join(__location__, input), "r")
-        output = read(file)
-    file.close()
+        fh = open(pfin)
+        output = read(fh)
+    fh.close()
     return output
