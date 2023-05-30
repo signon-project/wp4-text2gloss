@@ -5,6 +5,7 @@ LABEL authors="Bram Vanroy"
 WORKDIR /app
 
 COPY . /app/
+RUN pip install --upgrade pip wheel setuptools
 RUN pip install --no-cache-dir --upgrade .
 RUN python3 -m spacy download nl_core_news_lg
 
