@@ -62,6 +62,16 @@ changelog = "https://github.com/BramVanroy/text2gloss/blob/master/CHANGELOG.md"
 dev = ["flake8", "black", "isort"]
 
 # TOOLS
+[tool.setuptools]
+include-package-data = true
+license-files = ['LICEN[CS]E*']
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+text2gloss = ["**/*.txt", "**/*.json", "**/*.db"]
+
 [tool.black]
 line-length = 119
 target-version = ["py39", "py310", "py311"]
