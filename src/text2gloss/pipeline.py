@@ -1,13 +1,31 @@
+from pathlib import Path
 from typing import Literal
 
 from text2gloss.utils import send_request
 
 
 def run_pipeline(text: str, sign_lang: Literal["vgt", "ngt"] = "vgt", port: int = 5000, verbose: bool = True):
-    glosses = send_request("text2gloss", port=port, params={"text": text, "sign_lang": sign_lang})
-    if verbose and glosses:
-        print("text", text)
-        print(sign_lang.upper(), glosses)
+    pfin = Path(text)
+
+    if pfin.exists() and pfin.is_file():
+        texts = pfin.read_text(encoding="utf-8").splitlines()
+        all_glosses = []
+        for text in texts:
+            glosses = send_request("text2gloss", port=port, params={"text": text, "sign_lang": sign_lang})
+            if verbose:
+                print("TEXT:", text)
+                print(f"{sign_lang.upper()}:", " ".join(glosses["glosses"]))
+                print("META", glosses["meta"])
+                print()
+            all_glosses.append(glosses)
+
+        glosses = all_glosses
+    else:
+        glosses = send_request("text2gloss", port=port, params={"text": text, "sign_lang": sign_lang})
+        if verbose:
+            print("TEXT:", text)
+            print(f"{sign_lang.upper()}:", " ".join(glosses["glosses"]))
+            print("META", glosses["meta"])
 
     return glosses
 
@@ -25,7 +43,7 @@ def main():
 
     cparser.add_argument(
         "text",
-        help="Text to translate to glosses",
+        help="Text to translate to glosses. If a file is given, all of its lines will be translated separately.",
     )
     cparser.add_argument(
         "sign_lang",
