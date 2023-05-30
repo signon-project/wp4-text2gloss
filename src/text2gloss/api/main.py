@@ -261,6 +261,7 @@ async def concepts2glosses(
     skip_extra = 0
 
     triples = graph.triples
+    was_direct_say = False
     for triple_idx in range(len(triples)):
         source, role, target = triples[triple_idx]
         if skip_extra:
@@ -268,6 +269,15 @@ async def concepts2glosses(
             continue
 
         if source is None or target is None:
+            continue
+
+        # In conversational talk, sometimes the first node is "say" to mark that 'someone says x"
+        if triple_idx == 0 and role == ":instance" and target.startswith(("say", "recommend", "obligate", "and")):
+            was_direct_say = True
+            continue
+        # If this is a child-node of the "say" node (above) in conversational talk
+        # skip this node as well. It is typically "I"
+        if was_direct_say and source == "s" and role == ":ARG0":
             continue
 
         if role == ":location":
@@ -292,17 +302,25 @@ async def concepts2glosses(
                 # First I used ""HOE" here but that does not work in many cases,
                 # e.g., "Could (~'possible') you clarify that"
                 continue
+            elif target == "yet":
+                # Vague time marker
+                continue
             elif target == "cause":
                 glosses.append("[PU]")
             elif target in "i":
-                glosses.append("WG-1")
+                glosses.append("WG-1" if sign_lang == "vgt" else "PT-1")
             elif target == "you":
-                glosses.append("WG-2")
+                glosses.append("WG-2" if sign_lang == "vgt" else "PT-2")
             elif target in ("he", "she", "they"):
-                glosses.append("WG-3")
+                glosses.append("WG-3" if sign_lang == "vgt" else "PT-3")
             elif target == "we":
-                glosses.append("WG-4")
+                glosses.append("WG-4" if sign_lang == "vgt" else "PT-4")
             elif target == "have":
+                continue
+            elif target == "event":
+                # For instance for events with a duration: "4 hours" -> event temporal-quantity 4 hours
+                continue
+            elif target == "of-course":
                 continue
             elif target.isdigit():  # Copy digits
                 glosses.append(target)
@@ -325,8 +343,12 @@ async def concepts2glosses(
                             skip_extra = 2
                             continue
 
-                    # If this token is "city" and the next token is the city name, we can ignore "city"
-                    if target in ("city", "station") and next_target and next_target[0].isupper():
+                    # If this token is "city" or person and the next token is the city name, we can ignore "city"
+                    if target in ("city", "station", "person") and next_target and next_target[0].isupper():
+                        continue
+                    # Similar to the previous, sometimes a city, station or person is followed by an ":instance name"
+                    # which we can ignore
+                    elif target in ("city", "station", "person") and next_role and next_role == ":name":
                         continue
                     elif target == "name" and next_target and next_target == "have-rel-role":
                         skip_extra = 1
@@ -334,6 +356,11 @@ async def concepts2glosses(
                     elif target == "name" and next_target and next_role.startswith(":op"):
                         continue
                     elif target == "person" and next_target and next_target == "have-rel-role":
+                        skip_extra = 1
+                        continue
+                    elif target == "fortunate" and next_role and next_role == ":polarity" and next_target == "-" and source == next_source:
+                        # "unfortunately" ends up as "fortunatelty" + negative polarity
+                        # This is more of a politeness marker, so skipping it
                         skip_extra = 1
                         continue
 
