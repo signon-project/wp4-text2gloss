@@ -189,6 +189,11 @@ no_spacy_nl: bool = False
 logging_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"] = "INFO"
 ```
 
+If you are using spaCy, enabled by default, make sure to download the spaCy model.
+
+```shell
+python -m spacy download nl_core_news_lg
+```
 
 ### Downloading videos
 

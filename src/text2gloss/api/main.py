@@ -358,7 +358,13 @@ async def concepts2glosses(
                     elif target == "person" and next_target and next_target == "have-rel-role":
                         skip_extra = 1
                         continue
-                    elif target == "fortunate" and next_role and next_role == ":polarity" and next_target == "-" and source == next_source:
+                    elif (
+                        target == "fortunate"
+                        and next_role
+                        and next_role == ":polarity"
+                        and next_target == "-"
+                        and source == next_source
+                    ):
                         # "unfortunately" ends up as "fortunatelty" + negative polarity
                         # This is more of a politeness marker, so skipping it
                         skip_extra = 1

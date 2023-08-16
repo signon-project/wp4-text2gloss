@@ -5,19 +5,20 @@ from time import sleep
 
 import pandas as pd
 import requests
+from text2gloss.utils import send_request
 from tqdm import tqdm
 from urllib3.exceptions import RequestError
-
-from text2gloss.utils import send_request
 
 
 def get_num_lines(fname: str) -> int:
     with open(fname, "rbU") as fhin:
         return sum(1 for _ in fhin)
 
+
 def generate_glosses(text: str, port: int = 5000, min_length: int = 3, max_workers: int = 4):
     pfin = Path(text)
     if pfin.exists():
+
         def process_file(_pfin):
             session = requests.Session()
             session.headers.update({"Content-Type": "application/json"})
@@ -30,8 +31,12 @@ def generate_glosses(text: str, port: int = 5000, min_length: int = 3, max_worke
             # Also only include upper-case tokens. Sometimes Maud's code fails, e.g. `eentje` -> `ééntj`
             n_success = 0
             processed = set()
-            with _pfin.open(encoding="utf-8") as fhin, pfgloss.open("w", encoding="utf-8") as fhout, pfaligned.open("w", encoding="utf-8") as fhaligned:
-                for line_idx, line in tqdm(enumerate(fhin, 1), total=num_lines, leave=False, desc=f"Processing {_pfin.stem}", unit="line"):
+            with _pfin.open(encoding="utf-8") as fhin, pfgloss.open("w", encoding="utf-8") as fhout, pfaligned.open(
+                "w", encoding="utf-8"
+            ) as fhaligned:
+                for line_idx, line in tqdm(
+                    enumerate(fhin, 1), total=num_lines, leave=False, desc=f"Processing {_pfin.stem}", unit="line"
+                ):
                     uniq_hash = hashlib.sha256(line.encode(encoding="utf-8"))
                     if uniq_hash in processed:
                         continue
@@ -62,7 +67,8 @@ def generate_glosses(text: str, port: int = 5000, min_length: int = 3, max_worke
                         glosses = [
                             fixed_gloss
                             for gloss in response["glosses"]
-                            if (fixed_gloss := gloss.replace("wg+++", "").replace("sweep", "").strip()) and gloss.isupper()
+                            if (fixed_gloss := gloss.replace("wg+++", "").replace("sweep", "").strip())
+                            and gloss.isupper()
                         ]
                         if glosses and len(glosses) >= min_length:
                             glosses = " ".join(glosses)
@@ -98,7 +104,7 @@ def generate_glosses(text: str, port: int = 5000, min_length: int = 3, max_worke
                         print(f"{pf.stem} generated an exception: {exc}")
                     else:
                         if data:
-                             print(f"{pf.stem} processed: {data:,} lines glossified!")
+                            print(f"{pf.stem} processed: {data:,} lines glossified!")
     else:
         output = send_request("rb_text2gloss", port=port, params={"text": text})
         print(output)
@@ -109,17 +115,17 @@ def main():
 
     cparser = argparse.ArgumentParser(
         description="'Translates' a given Dutch 'text', file or directory of files to VGT glosses."
-                    " Assumes that an inference server is running on the given 'port'.",
+        " Assumes that an inference server is running on the given 'port'.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     cparser.add_argument(
         "text",
         help="Dutch text to translate to VGT glosses. If this is an existing file, the whole file will be translated"
-             " and the output written to a file that is named the same but whose stem ends in -gloss. Because some"
-             " lines can be discarded depending on the min_length, an -aligned file is also created with input lines"
-             " that correspond line-to-line with the gloss file. If the item is a valid directory, all items in it"
-             " (not recursively) will be translated to glosses. Duplicates will be removed on a per-file basis.",
+        " and the output written to a file that is named the same but whose stem ends in -gloss. Because some"
+        " lines can be discarded depending on the min_length, an -aligned file is also created with input lines"
+        " that correspond line-to-line with the gloss file. If the item is a valid directory, all items in it"
+        " (not recursively) will be translated to glosses. Duplicates will be removed on a per-file basis.",
     )
     cparser.add_argument(
         "--min_length",
@@ -145,4 +151,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
