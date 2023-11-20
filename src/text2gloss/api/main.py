@@ -12,8 +12,7 @@ import spacy
 import torch
 from databases import Database
 from fastapi import FastAPI, HTTPException, Query
-from mbart_amr.data.linearization import linearized2penmanstr
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 from sentence_transformers import SentenceTransformer, util
 from spacy.tokens import Doc
 from text2gloss.rule_based.complex_sents_helpers import (
@@ -38,7 +37,6 @@ from text2gloss.rule_based.word_lists import (
 )
 from text2gloss.text2amr import get_resources, translate
 from text2gloss.utils import standardize_gloss
-from transformers import LogitsProcessorList
 from typing_extensions import Annotated
 
 
@@ -83,7 +81,7 @@ async def lifespan(app: FastAPI):
         logging.info("Sentence Transformers disabled.")
 
     if not settings.no_amr:
-        amr_model, amr_tokenizer, amr_logitsprocessor = get_resources(
+        amr_model, amr_tokenizer = get_resources(
             multilingual=settings.mbart_input_lang != "English",
             quantize=settings.mbart_quantize,
             no_cuda=settings.mbart_device == "cpu",
@@ -91,7 +89,6 @@ async def lifespan(app: FastAPI):
         amr_gen_kwargs = {
             "max_length": amr_model.config.max_length,
             "num_beams": settings.mbart_num_beams if settings.mbart_num_beams else amr_model.config.num_beams,
-            "logits_processor": LogitsProcessorList([amr_logitsprocessor]),
         }
         logging.info(f"Using {amr_model.device} for AMR")
         resources["amr_model"] = amr_model
@@ -416,15 +413,14 @@ def get_linearized_amr(
     ):
         raise HTTPException(status_code=404, detail="The AMR model was not loaded.")
 
-    linearizeds = translate(
+    penman_strs = translate(
         [text],
         settings.mbart_input_lang,
         resources["amr_model"],
         resources["amr_tokenizer"],
         **resources["amr_gen_kwargs"],
     )
-    penman_str = linearized2penmanstr(linearizeds[0])
-    return penman_str
+    return penman_strs[0]
 
 
 @app.get("/text2gloss/")

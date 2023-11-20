@@ -107,7 +107,9 @@ def generate_glosses(text: str, port: int = 5000, min_length: int = 3, max_worke
                             print(f"{pf.stem} processed: {data:,} lines glossified!")
     else:
         output = send_request("rb_text2gloss", port=port, params={"text": text})
-        print(output)
+        print("TEXT:", text)
+        print(f"VGT:", " ".join(output["glosses"]))
+        print()
 
 
 def main():

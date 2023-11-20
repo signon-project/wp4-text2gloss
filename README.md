@@ -97,8 +97,12 @@ text2gloss "I want to eat my grandma's cookies" vgt
 The output printed to the console will look something like this:
 
 ```
-VGT {'glosses': ['WENSEN', 'WG-1', 'ETEN', 'KOEK', 'GROOTMOEDER'], 'meta': {'amr_concepts': ['want', 'i', 'eat', 'cookie', 'person', 'have-rel-role', 'grandmother']}}
+TEXT: I want to eat my grandma's cookies
+VGT: WENSEN WG-1 ETEN KOEK IEMAND GROOTMOEDER
+META {'is_unknown': False, 'mode': None}
 ```
+
+Under the hood this is making use of an API endpoint that is running through the inference server (see below), which is running on `http://127.0.0.1:{port}/text2gloss/`. For the available parameters, see [Swagger](#swagger).
 
 
 ### 5. Full text2gloss pipeline (rule-based)
@@ -117,7 +121,14 @@ package as well. It can be used as such:
 rb-text2gloss "Ik wil graag koekjes eten" --port 5001
 ```
 
-The `--port` argument is only required if it differs from the default (`5000`).
+Example output:
+
+```
+TEXT: Ik wil graag koekjes eten
+VGT: WG-1 WIL GRAAG ETEN KOEK
+```
+
+The `--port` argument is only required if it differs from the default (`5000`). Under the hood this is making use of an API endpoint that is running through the inference server (see below), which is running on `http://127.0.0.1:{port}/rb_text2gloss/`.  For the available parameters, see [Swagger](#swagger).
 
 To run the code, the inference server must be running (see below). You can disable many of the other components, as we
 only need spaCy for this pipeline. (Of course the command below only works if you have built the image first.) This is
@@ -195,7 +206,12 @@ If you are using spaCy, enabled by default, make sure to download the spaCy mode
 python -m spacy download nl_core_news_lg
 ```
 
-### Downloading videos
+### Swagger
+
+To view the available end points and their required parameters, see the swagger documentation which is available after launching the server
+on `http://127.0.0.1:{port}/docs`.
+
+## Downloading videos
 
 Download the corresponding videos from the URLs in a dictionary. Use this on a reformatted dictionary (a 'video'
 column must be present). The required input is the reformatted dictionary, the location to save the videos, and a 
