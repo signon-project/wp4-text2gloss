@@ -15,7 +15,7 @@ python -m pip install .[dev]
 ```
 
 
-## How to use
+## How to preprocess
 
 ### 1. Reformat dictionary
 
@@ -30,7 +30,7 @@ dictionary describes. Note that the input format can also be a TSV file (e.g. fo
 reformat-dictionary .\data\ngt-dictionary.csv -l ngt
 ```
 
-#### 2. (Optional -- paid) Add OpenAI GPT-x translations
+### 2. (Optional -- paid) Add OpenAI GPT-x translations
 
 An optional first step is to add English translations for each gloss. Using the OpenAI API allows us to be descriptive
 in our prompt. Rather than just translating the individual words of the explanation column (e.g. 'nl'), we can prompt
@@ -49,7 +49,7 @@ that is used in the descriptions, which will be used in the prompt.
 translate-openai data/ngt-dictionary-reformat.tsv 'Dutch, the variant of Dutch spoken in the Netherlands'
 ```
 
-#### 3. Add multilingual WordNet synset "translations" and disambiguate
+### 3. Add multilingual WordNet synset "translations" and disambiguate
 
 **Before running this script** make sure that the inference server is running (see 
 [FastAPI inference server](#fastapi-inference-server))
@@ -76,7 +76,7 @@ Repeat this process for all languages that you need. The database will be modifi
 we add separate tables for the separate languages.
 
 
-### 4. Full text2gloss pipeline
+## Full text2gloss pipeline
 
 **Before running this script** make sure that the inference server is running (see 
 [FastAPI inference server](#fastapi-inference-server))
@@ -105,7 +105,7 @@ META {'is_unknown': False, 'mode': None}
 Under the hood this is making use of an API endpoint that is running through the inference server (see below), which is running on `http://127.0.0.1:{port}/text2gloss/`. For the available parameters, see [Swagger](#swagger).
 
 
-### 5. Full text2gloss pipeline (rule-based)
+## Full text2gloss pipeline (rule-based)
 
 The text2gloss pipeline was initially created with the idea that, because we start from AMR, we could work with any 
 language: either through multilingual AMR generation or first via MT from X-to-EN and then EN to AMR. In reality, we
