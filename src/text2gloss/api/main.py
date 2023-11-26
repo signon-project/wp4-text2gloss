@@ -37,6 +37,7 @@ from text2gloss.rule_based.word_lists import (
 )
 from text2gloss.text2amr import get_resources, translate
 from text2gloss.utils import standardize_gloss
+from transformers import MBartForConditionalGeneration
 from typing_extensions import Annotated
 
 
@@ -49,14 +50,13 @@ class Settings(BaseSettings):
     sbert_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
 
     no_amr: bool = False
-    mbart_input_lang: Literal["English", "Dutch"] = "English"
     mbart_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
     mbart_quantize: bool = True
     mbart_num_beams: int = 3
 
     no_spacy_nl: bool = False
 
-    logging_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"] = "INFO"
+    logging_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"] = "WARNING"
 
 
 settings = Settings()
@@ -82,7 +82,6 @@ async def lifespan(app: FastAPI):
 
     if not settings.no_amr:
         amr_model, amr_tokenizer = get_resources(
-            multilingual=settings.mbart_input_lang != "English",
             quantize=settings.mbart_quantize,
             no_cuda=settings.mbart_device == "cpu",
         )
@@ -254,7 +253,7 @@ async def concepts2glosses(
     :return: a list of glosses
     """
     glosses = []
-    meta = {"is_unknown": False, "mode": None}
+    meta = {"is_unknown": False, "mode": None, "penman_str": penman.encode(graph)}
     skip_extra = 0
 
     triples = graph.triples
@@ -399,12 +398,13 @@ async def concepts2glosses(
 #################################
 @app.get("/text2linearized_amr/")
 def get_linearized_amr(
-    text: Annotated[
-        str,
+    texts: Annotated[
+        list[str] | str,
         Query(
             title="Text to convert to a linearized penman representation",
         ),
-    ]
+    ],
+    src_lang: Annotated[Literal["English", "Spanish", "Dutch"], Query(title="language of the input texts")],
 ):
     if (
         not resource_exists("amr_model")
@@ -413,14 +413,18 @@ def get_linearized_amr(
     ):
         raise HTTPException(status_code=404, detail="The AMR model was not loaded.")
 
+    if isinstance(texts, str):
+        texts = [texts]
+
     penman_strs = translate(
-        [text],
-        settings.mbart_input_lang,
+        texts,
+        src_lang,
         resources["amr_model"],
         resources["amr_tokenizer"],
         **resources["amr_gen_kwargs"],
     )
-    return penman_strs[0]
+    print("Num graphs inside get_linearized_amr", len(penman_strs))
+    return penman_strs
 
 
 @app.get("/text2gloss/")
@@ -431,16 +435,49 @@ async def run_pipeline(
             title="Text to convert to a penman representation",
         ),
     ],
+    src_lang: Annotated[Literal["English", "Spanish", "Dutch"], Query(title="language of the input text")],
     sign_lang: Annotated[Literal["vgt", "ngt"], Query(title="Which sign language to generate glosses for")] = "vgt",
 ) -> Dict[str, Any]:
     try:
-        penman_str = get_linearized_amr(text)
+        penman_str = get_linearized_amr(text, src_lang=src_lang)[0]
         graph = penman.decode(penman_str)
     except Exception:
         logging.exception("Could not generate AMR or parse linearization.")
         glosses, meta = [], {}
     else:
         glosses, meta = await concepts2glosses(graph, src_sentence=text, sign_lang=sign_lang)
+
+    meta["text"] = text
+
+    return {"glosses": glosses, "meta": meta}
+
+
+@app.get("/batch_text2gloss/")
+async def batch_run_pipeline(
+    texts: Annotated[
+        list[str],
+        Query(
+            title="Batch of texts to convert to a penman representation",
+        ),
+    ],
+    src_lang: Annotated[Literal["English", "Spanish", "Dutch"], Query(title="language of the input texts")],
+    sign_lang: Annotated[Literal["vgt", "ngt"], Query(title="Which sign language to generate glosses for")] = "vgt",
+) -> Dict[str, Any]:
+    print(f"Translating {src_lang} to {sign_lang} with {resources['amr_model'].name_or_path}")
+    glosses, meta = [], []
+    try:
+        penman_strs = get_linearized_amr(texts, src_lang=src_lang)
+        graphs = [penman.decode(penman_str) for penman_str in penman_strs]
+    except Exception:
+        logging.exception("Could not generate AMR or parse linearization.")
+    else:
+        print("Num texts", len(texts))
+        print("Num graphs", len(graphs))
+        for text, graph in zip(texts, graphs):
+            glosses_, meta_ = await concepts2glosses(graph, src_sentence=text, sign_lang=sign_lang)
+            glosses.append(glosses_)
+            meta_["text"] = text
+            meta.append(meta_)
 
     return {"glosses": glosses, "meta": meta}
 
