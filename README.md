@@ -91,15 +91,18 @@ the similarity. The gloss that is closest to the input sentence is then selected
 The required input is the sentence to covert, the target language (e.g. "vgt" or "ngt").
 
 ```shell
-text2gloss "I want to eat my grandma's cookies" vgt
+text2gloss "I want to eat my grandma's cookies" English vgt
 ```
 
-The output printed to the console will look something like this:
+The output printed to the console will look something like this, where META includes
+whether the utterance was a question (`unknown`), the mode (e.g. `imperative`), and the AMR string in PENMAN representation.
 
 ```
 TEXT: I want to eat my grandma's cookies
 VGT: WENSEN WG-1 ETEN KOEK IEMAND GROOTMOEDER
-META {'is_unknown': False, 'mode': None}
+META {'is_unknown': False, 'mode': None, 'penman_str': '(w / want-01\n   :ARG0 (i / i)\n   :ARG1 (e / eat-01\n            :ARG0 i\n
+:ARG1 (c / cookie\n                     :poss (p / person\n                              :ARG0-of (h / have-rel-role-91\n
+                    :ARG1 i\n                                          :ARG2 (g / grandma))))))', 'text': "I want to eat my grandma's cookies"}
 ```
 
 Under the hood this is making use of an API endpoint that is running through the inference server (see below), which is running on `http://127.0.0.1:{port}/text2gloss/`. For the available parameters, see [Swagger](#swagger).
@@ -190,14 +193,13 @@ sbert_model_name: str = "sentence-transformers/LaBSE"
 sbert_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
 
 no_amr: bool = False
-mbart_input_lang: Literal["English", "Dutch"] = "English"
 mbart_device: Literal["cuda", "cpu"] = "cuda" if torch.cuda.is_available() else "cpu"
 mbart_quantize: bool = True
 mbart_num_beams: int = 3
 
 no_spacy_nl: bool = False
 
-logging_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"] = "INFO"
+logging_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"] = "WARNING"
 ```
 
 If you are using spaCy, enabled by default, make sure to download the spaCy model.
