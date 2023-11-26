@@ -34,7 +34,7 @@ dependencies = [
         "databases[aiosqlite]==0.8.0",
         "fastapi==0.104.1",
         "ftfy==6.1.1",
-        "multi_amr @ git+https://github.com/BramVanroy/multilingual-text-to-amr.git@v1.0.0-alpha.2",
+        "multi_amr @ git+https://github.com/BramVanroy/multilingual-text-to-amr.git@v1.0.0-alpha.3",
         "openai==0.27.4",
         "pandas==2.1.3",
         "penman==1.2.2",
@@ -45,6 +45,7 @@ dependencies = [
         "spacy==3.7.2",
         "telwoord==0.4",
         "tqdm",
+        "typer",
         "typing_extensions",
         "uvicorn[standard]==0.23.2",
         "wn==0.9.4",
@@ -93,3 +94,4 @@ download-videos = "text2gloss.process_dictionary.download_videos:main"
 preprocess-gloss = "text2gloss.process_dictionary.preprocess:main"
 text2gloss = "text2gloss.pipeline:main"
 rb-text2gloss = "text2gloss.rule_based.translate:main"
+evaluate = "text2gloss.evaluate:app"
