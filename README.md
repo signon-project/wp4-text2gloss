@@ -143,7 +143,7 @@ docker run --env NO_SBERT=true --env NO_AMR=true --env NO_DB=true --rm -d --name
 
 ## Generating and evaluating glosses from files
 
-Two utility scripts have been creatied to facilitate batch generation of glosses as well as evaluation of the generated
+Two utility scripts have been created to facilitate batch generation of glosses as well as evaluation of the generated
 glosses. They are installed automatically after you install this library, but you will have to install it with its
 `evaluate` option:
 
