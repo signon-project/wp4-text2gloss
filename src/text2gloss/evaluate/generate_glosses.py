@@ -79,6 +79,7 @@ def generate_glosses(
         bool, Option(help="whether to filter out sentences whose glosses are not supported")
     ] = False,
     batch_size: Annotated[int, Option(help="batch size to process text2amr with")] = 4,
+    use_rb: Annotated[bool, Option(help="whether to use rule-based glosser")] = False,
     port: Annotated[int, Option(help="port where the inference server is running on")] = 5000,
 ):
     """
@@ -108,31 +109,58 @@ def generate_glosses(
                 f" --only-use-supported flag."
             )
 
+    Path(output_file).parent.mkdir(exist_ok=True, parents=True)
     with Path(output_file).parent.joinpath("raw_predictions.txt").open("w", encoding="utf-8") as fhout:
         # Predict new glosses
         predictions = []
-        for batch_input_sentences in tqdm(
-            batchify(input_sentences, batch_size=batch_size), total=ceil(len(input_sentences) / batch_size)
-        ):
-            output = send_request(
-                "batch_text2gloss",
-                port=port,
-                params={"texts": batch_input_sentences, "sign_lang": sign_lang, "src_lang": src_lang},
-            )
 
-            if output is not None:
-                batch_preds = [" ".join(glosses) for glosses in output["glosses"]]
-                predictions.extend(batch_preds)
+        if use_rb:
+            if sign_lang != SignLang.vgt or src_lang != SpokenLang.dutch:
+                raise ValueError("Rule-based glosser only supports VGT and Dutch!")
 
-                for glosses, meta in zip(output["glosses"], output["meta"]):
-                    print(f"Text: {meta['text']}")
-                    print(f"Preds: {' '.join(glosses)}")
+            for sentence in input_sentences:
+                output = send_request(
+                    "rb_text2gloss",
+                    port=port,
+                    params={"text": sentence},
+                )
+
+                if output is not None:
+                    glosses = output["glosses"]
+                    glosses = " ".join(glosses)
+                    predictions.append(glosses)
+                    print(f"Text: {sentence}")
+                    print(f"Preds: {glosses}")
                     print()
 
-                    fhout.write(f"Text: {meta['text']}\n")
-                    fhout.write(f"Preds: {' '.join(glosses)}\n")
-                    fhout.write(meta["penman_str"])
+                    fhout.write(f"Text: {sentence}\n")
+                    fhout.write(f"Preds: {glosses}\n")
                     fhout.write("\n\n")
+        else:
+            for batch_input_sentences in tqdm(
+                batchify(input_sentences, batch_size=batch_size), total=ceil(len(input_sentences) / batch_size)
+            ):
+
+
+                output = send_request(
+                    "batch_text2gloss",
+                    port=port,
+                    params={"texts": batch_input_sentences, "sign_lang": sign_lang, "src_lang": src_lang},
+                )
+
+                if output is not None:
+                    batch_preds = [" ".join(glosses) for glosses in output["glosses"]]
+                    predictions.extend(batch_preds)
+
+                    for glosses, meta in zip(output["glosses"], output["meta"]):
+                        print(f"Text: {meta['text']}")
+                        print(f"Preds: {' '.join(glosses)}")
+                        print()
+
+                        fhout.write(f"Text: {meta['text']}\n")
+                        fhout.write(f"Preds: {' '.join(glosses)}\n")
+                        fhout.write(meta["penman_str"])
+                        fhout.write("\n\n")
 
     Path(output_file).write_text("\n".join(predictions), encoding="utf-8")
     Path(output_file).parent.joinpath("gold_glosses.txt").write_text("\n".join(input_glossed_sents), encoding="utf-8")
