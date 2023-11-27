@@ -50,7 +50,7 @@ def batchify(iterable: list, batch_size: int = 8) -> list:
 
 
 @app.command()
-def evaluate_glosses(
+def generate_glosses(
     text_file: Annotated[
         Path,
         Argument(help="text file containing sentences", file_okay=True, exists=True, readable=True, resolve_path=True),
@@ -131,7 +131,7 @@ def evaluate_glosses(
 
                     fhout.write(f"Text: {meta['text']}\n")
                     fhout.write(f"Preds: {' '.join(glosses)}\n")
-                    fhout.write(meta['penman_str'])
+                    fhout.write(meta["penman_str"])
                     fhout.write("\n\n")
 
     Path(output_file).write_text("\n".join(predictions), encoding="utf-8")

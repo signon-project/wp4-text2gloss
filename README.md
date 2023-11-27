@@ -141,6 +141,33 @@ discussed in more detail in the section [below](#fastapi-inference-server).
 docker run --env NO_SBERT=true --env NO_AMR=true --env NO_DB=true --rm -d --name text2gloss -p 5000:5000 text2gloss-img
 ```
 
+## Generating and evaluating glosses from files
+
+Two utility scripts have been creatied to facilitate batch generation of glosses as well as evaluation of the generated
+glosses. They are installed automatically after you install this library, but you will have to install it with its
+`evaluate` option:
+
+```sh
+python -m pip install .[evaluate]
+```
+
+This will install two scripts `generate-gloss` and `evaluate-gloss`. The first one will generate glosses for a given
+file. The second one will evaluate the generated glosses against a reference file. Both scripts have a `--help` option
+so you can use that to get more information about possible arguments.
+
+Example usage:
+
+```sh
+# Generate glosses. This expect the inference server to be running!
+generate-gloss sentences.txt ref_glosses.txt output_glosses.txt --src-lang Dutch --sign-lang ngt
+
+# Evaluate generated glosses. 
+# - Writes corpus-level scores to ngt-only_supported_glosses-scores.json
+# - Writes sentence-level scores to ngt-only_supported_glosses-sent_scores.csv for supported metrics
+evaluate-gloss ngt-only_supported_glosses-predictions.txt gold_glosses.txt gold_sents.txt ngt-only_supported_glosses-scores.json ngt-only_supported_glosses-sent_scores.csv --batch-size 64 --no-lower-case
+```
+
+
 ## FastAPI inference server
 
 An inference server is included to serve the MBART AMR pipeline as well as LABSE vector creation.

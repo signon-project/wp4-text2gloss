@@ -58,8 +58,14 @@ repository = "https://github.com/BramVanroy/text2gloss.git"
 changelog = "https://github.com/BramVanroy/text2gloss/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
+evaluate = [
+    "bleurt @ git+https://github.com/google-research/bleurt.git",
+    "sacrebleu==2.3.1",
+    "unbabel-comet==2.2.0",
+]
+
 # https://stackoverflow.com/a/72524073/1150683
-dev = ["flake8", "black", "isort"]
+dev = ["text2gloss[evaluate]", "flake8", "black", "isort"]
 
 # TOOLS
 [tool.setuptools]
@@ -94,4 +100,5 @@ download-videos = "text2gloss.process_dictionary.download_videos:main"
 preprocess-gloss = "text2gloss.process_dictionary.preprocess:main"
 text2gloss = "text2gloss.pipeline:main"
 rb-text2gloss = "text2gloss.rule_based.translate:main"
-evaluate = "text2gloss.evaluate:app"
+generate-gloss = "text2gloss.evaluate.generate_glosses:app"
+evaluate-gloss = "text2gloss.evaluate.evaluate_glosses:app"
