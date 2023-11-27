@@ -4,14 +4,22 @@ from typing import Literal
 from text2gloss.utils import send_request
 
 
-def run_pipeline(text: str, src_lang: Literal["English", "Dutch", "Spanish"], sign_lang: Literal["vgt", "ngt"] = "vgt", port: int = 5000, verbose: bool = True):
+def run_pipeline(
+    text: str,
+    src_lang: Literal["English", "Dutch", "Spanish"],
+    sign_lang: Literal["vgt", "ngt"] = "vgt",
+    port: int = 5000,
+    verbose: bool = True,
+):
     pfin = Path(text)
 
     if pfin.exists() and pfin.is_file():
         texts = pfin.read_text(encoding="utf-8").splitlines()
         all_glosses = []
         for text in texts:
-            glosses = send_request("text2gloss", port=port, params={"text": text, "sign_lang": sign_lang, "src_lang": src_lang})
+            glosses = send_request(
+                "text2gloss", port=port, params={"text": text, "sign_lang": sign_lang, "src_lang": src_lang}
+            )
             if verbose:
                 print("TEXT:", text)
                 print(f"{sign_lang.upper()}:", " ".join(glosses["glosses"]))
@@ -21,7 +29,9 @@ def run_pipeline(text: str, src_lang: Literal["English", "Dutch", "Spanish"], si
 
         glosses = all_glosses
     else:
-        glosses = send_request("text2gloss", port=port, params={"text": text, "sign_lang": sign_lang, "src_lang": src_lang})
+        glosses = send_request(
+            "text2gloss", port=port, params={"text": text, "sign_lang": sign_lang, "src_lang": src_lang}
+        )
         if verbose:
             print("TEXT:", text)
             print(f"{sign_lang.upper()}:", " ".join(glosses["glosses"]))
