@@ -264,4 +264,4 @@ or due to automatic translation (at least via WordNet).
 
 ## LICENSE
 
-Distributed under a GPLv3 [license](LICENSE).
+Distributed under an apache-2.0 [license](LICENSE).
