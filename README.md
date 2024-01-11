@@ -235,7 +235,7 @@ If you are using spaCy, enabled by default, make sure to download the spaCy mode
 python -m spacy download nl_core_news_lg
 ```
 
-### Swagger
+### Using docker end-points (Swagger)
 
 To view the available end points and their required parameters, see the swagger documentation which is available after launching the server
 on `http://127.0.0.1:{port}/docs`.

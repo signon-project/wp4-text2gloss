@@ -361,7 +361,7 @@ async def concepts2glosses(
                         and next_target == "-"
                         and source == next_source
                     ):
-                        # "unfortunately" ends up as "fortunatelty" + negative polarity
+                        # "unfortunately" ends up as "fortunately" + negative polarity
                         # This is more of a politeness marker, so skipping it
                         skip_extra = 1
                         continue
