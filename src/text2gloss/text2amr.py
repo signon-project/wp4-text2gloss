@@ -36,7 +36,7 @@ def get_resources(
     if use_language_specific:
         if model_lang == "Dutch":
             tokenizer = AMRTokenizerWrapper.from_pretrained(
-                "BramVanroy/mbart-large-cc25-ft-amr30-en", src_lang="nl_XX"
+                "BramVanroy/mbart-large-cc25-ft-amr30-nl", src_lang="nl_XX"
             )
             model = MBartForConditionalGeneration.from_pretrained("BramVanroy/mbart-large-cc25-ft-amr30-nl")
         elif model_lang == "English":
@@ -46,7 +46,7 @@ def get_resources(
             model = MBartForConditionalGeneration.from_pretrained("BramVanroy/mbart-large-cc25-ft-amr30-en")
         elif model_lang == "Spanish":
             tokenizer = AMRTokenizerWrapper.from_pretrained(
-                "BramVanroy/mbart-large-cc25-ft-amr30-en", src_lang="es_XX"
+                "BramVanroy/mbart-large-cc25-ft-amr30-es", src_lang="es_XX"
             )
             model = MBartForConditionalGeneration.from_pretrained("BramVanroy/mbart-large-cc25-ft-amr30-es")
         else:
